@@ -19,7 +19,7 @@ const TEAM_PASSWORD = "ethereal2026";
 const REVERSED_TOKEN = "T8BcM4XQOeWkeYLZIX98sunNF7AIht88GHao_phg";
 const PRESET_TOKEN = REVERSED_TOKEN.split("").reverse().join("");
 const PRESET_REPO = "Ethereal-Cap/Excalidraw";
-const PRESET_BRANCH = "master";
+const PRESET_BRANCH = "drawings";
 const PRESET_PATH = "drawings"; // Store drawings in a dedicated subfolder
 
 export const GitHubFileExplorer = ({
