@@ -374,13 +374,7 @@
       "customType": null,
       "locked": false,
       "fromSelection": false,
-      "lastActiveTool": {
-        "type": "freedraw",
-        "customType": null,
-        "locked": false,
-        "fromSelection": false,
-        "lastActiveTool": null
-      }
+      "lastActiveTool": null
     },
     "preferredSelectionTool": {
       "type": "selection",
@@ -406,7 +400,7 @@
     "isRotating": false,
     "lastPointerDownWith": "mouse",
     "multiElement": null,
-    "name": "video",
+    "name": "video Lecutres",
     "contextMenu": null,
     "openMenu": null,
     "openPopup": null,
