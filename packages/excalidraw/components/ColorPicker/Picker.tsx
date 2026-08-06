@@ -19,6 +19,8 @@ import { CustomColorList } from "./CustomColorList";
 import PickerColorList from "./PickerColorList";
 import PickerHeading from "./PickerHeading";
 import { ShadeList } from "./ShadeList";
+import { SavedCustomColors } from "./SavedCustomColors";
+import { TradingViewPicker } from "./TradingViewPicker";
 import {
   activeColorPickerSectionAtom,
   getColorNameAndShadeFromColor,
@@ -76,6 +78,27 @@ export const Picker = React.forwardRef(
       }
       return getMostUsedCustomColors(elements, type, palette);
     });
+
+    // Custom Saved Colors States
+    const [savedColors, setSavedColors] = useState<string[]>(() => {
+      try {
+        const saved = localStorage.getItem("excalidraw-custom-saved-colors");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length === 15) {
+            return parsed;
+          }
+        }
+      } catch (e) {}
+      // 15 default color slots (3 rows of 5)
+      return [
+        "#ffffff", "#f8f9fa", "#e9ecef", "#dee2e6", "#ced4da",
+        "#f03e3e", "#d6336c", "#ae3ec9", "#7048e8", "#4263eb",
+        "#37b24d", "#f59f00", "#f76707", "#1098ad", "#1c7ed6"
+      ];
+    });
+
+    const [activeSlot, setActiveSlot] = useState<number>(0);
 
     const [activeColorPickerSection, setActiveColorPickerSection] = useAtom(
       activeColorPickerSectionAtom,
@@ -166,10 +189,18 @@ export const Picker = React.forwardRef(
             }
           }}
           className="color-picker-content properties-content"
-          // to allow focusing by clicking but not by tabbing
           tabIndex={-1}
         >
           {title && <div className="color-picker__title">{title}</div>}
+
+          {/* Persistent Custom Saved Colors section */}
+          <SavedCustomColors
+            colors={savedColors}
+            activeSlot={activeSlot}
+            setActiveSlot={setActiveSlot}
+            color={color}
+            onChange={onChange}
+          />
 
           {!!customColors.length && (
             <div>
@@ -206,7 +237,19 @@ export const Picker = React.forwardRef(
               showHotKey={showHotKey}
             />
           </div>
-          {children}
+
+          {/* TradingView-style Color Picker */}
+          <TradingViewPicker
+            color={color}
+            onChange={onChange}
+            colorPickerType={type}
+            onAddColor={(newColor) => {
+              const updated = [...savedColors];
+              updated[activeSlot] = newColor;
+              setSavedColors(updated);
+              localStorage.setItem("excalidraw-custom-saved-colors", JSON.stringify(updated));
+            }}
+          />
         </div>
       </div>
     );

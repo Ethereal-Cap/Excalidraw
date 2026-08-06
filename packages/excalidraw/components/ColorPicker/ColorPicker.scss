@@ -515,4 +515,187 @@
       color: #000;
     }
   }
+
+  // Saved Custom Colors Grid
+  .saved-custom-colors {
+    padding: 0 0.5rem;
+    
+    .saved-custom-colors-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1.875rem);
+      grid-gap: 0.25rem;
+      margin-top: 0.25rem;
+    }
+
+    .saved-color-slot {
+      position: relative;
+      transition: transform 0.1s ease;
+      cursor: pointer;
+
+      &.active-slot {
+        transform: scale(1.08);
+        outline: 2px solid var(--color-primary-darkest);
+        box-shadow: 0 0 4px var(--color-primary-darkest);
+        z-index: 2;
+      }
+
+      .active-slot-dot {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background-color: #fff;
+        border-radius: 50%;
+        border: 1.5px solid #000;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+    }
+  }
+
+  // TradingView Style Picker
+  .tradingview-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-top: 1px solid var(--default-border-color);
+    margin-top: 0.25rem;
+
+    .tv-picker-preview-row {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      width: 100%;
+    }
+
+    .tv-picker-preview-box {
+      width: 1.875rem;
+      height: 1.875rem;
+      border-radius: 4px;
+      border: 1px solid var(--default-border-color);
+      flex-shrink: 0;
+    }
+
+    .tv-picker-hex-input {
+      flex: 1;
+      min-width: 0;
+      height: 1.875rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--text-primary-color);
+      font-size: 0.8rem;
+      text-align: center;
+      outline: none;
+
+      &:focus {
+        border-color: var(--color-primary-darkest);
+      }
+    }
+
+    .tv-eyedropper-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.875rem;
+      height: 1.875rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 4px;
+      cursor: pointer;
+      flex-shrink: 0;
+
+      &:hover {
+        background: var(--color-gray-10);
+      }
+
+      &.selected {
+        background: var(--color-primary-darkest);
+        svg {
+          color: #fff;
+        }
+      }
+    }
+
+    .tv-picker-add-btn {
+      height: 1.875rem;
+      padding: 0 0.5rem;
+      font-size: 0.8rem;
+      background: var(--color-primary-darkest, #1c7ed6);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      flex-shrink: 0;
+
+      &:hover {
+        background: var(--color-primary-darker, #1a74c2);
+      }
+    }
+
+    .tv-picker-middle {
+      display: flex;
+      gap: 0.5rem;
+      width: 100%;
+    }
+
+    .tv-picker-sv-box {
+      flex: 1;
+      height: 120px;
+      border-radius: 4px;
+      position: relative;
+      cursor: crosshair;
+      overflow: hidden;
+      border: 1px solid var(--default-border-color);
+    }
+
+    .tv-picker-sv-white {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to right, #fff, transparent);
+    }
+
+    .tv-picker-sv-black {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to bottom, transparent, #000);
+      position: relative;
+    }
+
+    .tv-picker-cursor {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border: 1.5px solid #fff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+    }
+
+    .tv-picker-hue-slider {
+      width: 15px;
+      height: 120px;
+      border-radius: 4px;
+      position: relative;
+      cursor: pointer;
+      background: linear-gradient(to bottom, red, #ff0, green, cyan, blue, magenta, red);
+      border: 1px solid var(--default-border-color);
+    }
+
+    .tv-picker-hue-cursor {
+      position: absolute;
+      left: -2px;
+      right: -2px;
+      height: 4px;
+      background: #fff;
+      border: 1px solid #000;
+      border-radius: 2px;
+      pointer-events: none;
+      transform: translateY(-50%);
+    }
+  }
 }
+

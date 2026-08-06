@@ -113,7 +113,7 @@ const ColorPickerPopupContent = ({
   return (
     <PropertiesPopover
       container={container}
-      style={{ maxWidth: "13rem" }}
+      style={{ width: "16rem" }}
       // Improve focus handling for text editing scenarios
       preventAutoFocusOnTouch={!!appState.editingTextElement}
       onFocusOutside={(event) => {
