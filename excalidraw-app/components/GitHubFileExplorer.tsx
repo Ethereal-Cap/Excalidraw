@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 interface GitHubFileExplorerProps {
@@ -55,11 +55,17 @@ export const GitHubFileExplorer = ({
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Keep ref to avoid stale closure in hashchange event listener
+  const stateRef = useRef({ isConnected, token, repo, branch, path, currentPath, excalidrawAPI });
+  useEffect(() => {
+    stateRef.current = { isConnected, token, repo, branch, path, currentPath, excalidrawAPI };
+  }, [isConnected, token, repo, branch, path, currentPath, excalidrawAPI]);
+
   // Sync Excalidraw canvas name with file name input
   useEffect(() => {
     if (excalidrawAPI && isConnected) {
       const activeName = excalidrawAPI.getAppState().name;
-      if (activeName && activeName !== "Untitled") {
+      if (activeName && activeName !== "Untitled" && !activeName.startsWith("canvas-")) {
         setNewFileName(activeName);
       }
     }
@@ -134,7 +140,6 @@ export const GitHubFileExplorer = ({
 
       const data = await res.json();
       if (Array.isArray(data)) {
-        // Map and filter elements
         const mapped: GitHubItem[] = data
           .filter(
             (item: any) =>
@@ -167,21 +172,27 @@ export const GitHubFileExplorer = ({
     }
   }, [isConnected, fetchFiles]);
 
-  const loadFile = async (file: GitHubItem) => {
+  const loadFileFromPath = useCallback(async (relativePath: string) => {
+    const s = stateRef.current;
+    if (!s.excalidrawAPI || !s.isConnected) return;
+
     setLoading(true);
     setError(null);
     try {
+      const cleanRoot = s.path.replace(/^\/|\/$/g, "");
+      const fullPath = cleanRoot ? `${cleanRoot}/${relativePath}` : relativePath;
+
       const res = await fetch(
-        `https://api.github.com/repos/${repo}/contents/${file.path}?ref=${branch}`,
+        `https://api.github.com/repos/${s.repo}/contents/${fullPath}?ref=${s.branch}`,
         {
           headers: {
-            Authorization: `token ${token}`,
+            Authorization: `token ${s.token}`,
             Accept: "application/vnd.github.v3+json",
           },
         },
       );
       if (!res.ok) {
-        throw new Error("Failed to download drawing file.");
+        throw new Error("File not found on GitHub or network error.");
       }
       const fileData = await res.json();
       const decodedContent = decodeURIComponent(
@@ -189,30 +200,89 @@ export const GitHubFileExplorer = ({
       );
       const data = JSON.parse(decodedContent);
 
-      if (excalidrawAPI) {
-        const nameWithoutExtension = file.name.replace(
-          /\.(excalidraw|json)$/,
-          "",
-        );
-        excalidrawAPI.updateScene({
-          elements: data.elements || [],
-          appState: {
-            theme: data.appState?.theme || "light",
-            viewBackgroundColor:
-              data.appState?.viewBackgroundColor || "#ffffff",
-            name: nameWithoutExtension,
-          },
-        });
-        setNewFileName(nameWithoutExtension); // Update local input field
-        setSuccessMsg(`Loaded "${file.name}"`);
-        setTimeout(() => setSuccessMsg(null), 3000);
-      } else {
-        throw new Error("Excalidraw Editor instance is not ready yet.");
+      // Load files (images) first if they exist
+      if (data.files) {
+        try {
+          s.excalidrawAPI.addFiles(Object.values(data.files));
+        } catch (e) {
+          console.error("Error adding files to scene:", e);
+        }
       }
+
+      const nameWithoutExtension = relativePath.split("/").pop()?.replace(
+        /\.(excalidraw|json)$/,
+        "",
+      ) || relativePath;
+
+      s.excalidrawAPI.updateScene({
+        elements: data.elements || [],
+        appState: {
+          theme: data.appState?.theme || "light",
+          viewBackgroundColor:
+            data.appState?.viewBackgroundColor || "#ffffff",
+          name: nameWithoutExtension,
+        },
+      });
+
+      // Update folder path to match file folder
+      const fileDirParts = relativePath.split("/");
+      fileDirParts.pop(); // Remove filename
+      const folderPath = fileDirParts.join("/");
+      setCurrentPath(folderPath);
+      setNewFileName(nameWithoutExtension);
     } catch (err: any) {
       setError(err.message || "Failed to load drawing.");
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  // Hash Routing Listener
+  useEffect(() => {
+    if (!isConnected || !excalidrawAPI) return;
+
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (!hash.startsWith("#id=")) {
+        // Generate a new unique ID for a fresh blank canvas
+        const uniqueId = "canvas-" + Math.random().toString(36).substring(2, 9);
+        window.location.hash = `id=${uniqueId}`;
+        return;
+      }
+
+      const canvasId = decodeURIComponent(hash.replace("#id=", ""));
+      
+      // If it starts with "canvas-", open it as a fresh blank canvas
+      if (canvasId.startsWith("canvas-")) {
+        excalidrawAPI.updateScene({ elements: [] });
+        setNewFileName(canvasId);
+        return;
+      }
+
+      // Otherwise, it's a file path! Load it from GitHub
+      const fileName = canvasId.endsWith(".excalidraw") || canvasId.endsWith(".json")
+        ? canvasId
+        : `${canvasId}.excalidraw`;
+      loadFileFromPath(fileName);
+    };
+
+    // Run on initial mount
+    handleHashChange();
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, [isConnected, excalidrawAPI, loadFileFromPath]);
+
+  const handleItemClick = (item: GitHubItem) => {
+    if (item.type === "dir") {
+      navigateInto(item.name);
+    } else {
+      // Set the hash which will trigger the loading automatically
+      const cleanRoot = path.replace(/^\/|\/$/g, "");
+      const relativeItemPath = item.path.startsWith(cleanRoot)
+        ? item.path.substring(cleanRoot.length).replace(/^\/|\/$/g, "")
+        : item.path;
+      window.location.hash = `id=${encodeURIComponent(relativeItemPath)}`;
     }
   };
 
@@ -306,6 +376,10 @@ export const GitHubFileExplorer = ({
         setLocalFolders((prev) => [...prev, currentPath]);
       }
 
+      // Sync hash with newly saved name
+      const relativeSavedPath = currentPath ? `${currentPath}/${nameWithoutExtension}` : nameWithoutExtension;
+      window.location.hash = `id=${encodeURIComponent(relativeSavedPath)}`;
+
       fetchFiles();
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {
@@ -346,7 +420,6 @@ export const GitHubFileExplorer = ({
 
   // Combine items loaded from GitHub with local folders created at this path
   const getCombinedItems = (): GitHubItem[] => {
-    // Get unique local folders created in the current directory level
     const localDirs = localFolders
       .filter((fp) => {
         const parts = fp.split("/");
@@ -364,7 +437,6 @@ export const GitHubFileExplorer = ({
         };
       });
 
-    // Merge them together, prioritizing GitHub items
     const merged = [...items];
     localDirs.forEach((ld) => {
       if (!merged.some((i) => i.type === "dir" && i.name === ld.name)) {
@@ -372,7 +444,6 @@ export const GitHubFileExplorer = ({
       }
     });
 
-    // Sort: directories first, then files
     return merged.sort((a, b) => {
       if (a.type === b.type) {
         return a.name.localeCompare(b.name);
@@ -409,7 +480,6 @@ export const GitHubFileExplorer = ({
   }
 
   const combinedItems = getCombinedItems();
-  const folderParts = currentPath.split("/").filter(Boolean);
 
   return (
     <div className="github-explorer-panel">
@@ -514,7 +584,7 @@ export const GitHubFileExplorer = ({
                 {item.type === "dir" ? (
                   <button
                     type="button"
-                    onClick={() => navigateInto(item.name)}
+                    onClick={() => handleItemClick(item)}
                     className="gh-file-load-btn folder-item"
                     style={{ background: "rgba(112, 72, 232, 0.05)", borderColor: "rgba(112, 72, 232, 0.2)" }}
                     title="Click to enter this folder"
@@ -525,7 +595,7 @@ export const GitHubFileExplorer = ({
                 ) : (
                   <button
                     type="button"
-                    onClick={() => loadFile(item)}
+                    onClick={() => handleItemClick(item)}
                     className="gh-file-load-btn"
                     title="Click to open this drawing"
                   >

@@ -172,10 +172,11 @@
       }
 
       &-success {
-        background-color: var(--color-success, #2b8a3e);
-        color: #fff;
+        background-color: #099268;
+        color: #ffffff !important;
+        font-weight: 700;
         &:hover:not(:disabled) {
-          background-color: #237032;
+          background-color: #087f5b;
         }
         &:disabled {
           opacity: 0.6;
@@ -216,10 +217,11 @@
     .explorer-success {
       padding: 0.75rem;
       border-radius: 6px;
-      background-color: rgba(43, 138, 62, 0.1);
-      border: 1px solid var(--color-success, #2b8a3e);
-      color: var(--color-success, #2b8a3e);
-      font-size: 0.85rem;
+      background-color: #e6fcf5;
+      border: 1px solid #099268;
+      color: #087f5b;
+      font-size: 0.88rem;
+      font-weight: 600;
       margin-bottom: 1rem;
     }
 
