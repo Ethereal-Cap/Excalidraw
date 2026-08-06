@@ -404,6 +404,103 @@ const ExcalidrawWrapper = () => {
     }, VERSION_TIMEOUT);
   }, []);
 
+  // Global Hash Routing Listener for GitHub drawings
+  useEffect(() => {
+    if (!excalidrawAPI) return;
+
+    const loadFileFromPath = async (relativePath: string) => {
+      const token = localStorage.getItem("excalidraw-gh-token");
+      const repo = localStorage.getItem("excalidraw-gh-repo");
+      const branch = localStorage.getItem("excalidraw-gh-branch") || "drawings";
+      const pathVal = localStorage.getItem("excalidraw-gh-path") || "drawings";
+      const auth = localStorage.getItem("excalidraw-gh-auth") === "true";
+
+      if (!auth || !token || !repo) return;
+
+      try {
+        const cleanRoot = pathVal.replace(/^\/|\/$/g, "");
+        const fullPath = cleanRoot ? `${cleanRoot}/${relativePath}` : relativePath;
+
+        const res = await fetch(
+          `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}&_t=${Date.now()}`,
+          {
+            cache: "no-store",
+            headers: {
+              Authorization: `token ${token}`,
+              Accept: "application/vnd.github.v3+json",
+            },
+          },
+        );
+        if (!res.ok) {
+          throw new Error("File not found on GitHub");
+        }
+        const fileData = await res.json();
+        const decodedContent = decodeURIComponent(
+          escape(atob(fileData.content.replace(/\s/g, ""))),
+        );
+        const data = JSON.parse(decodedContent);
+
+        if (data.files) {
+          try {
+            excalidrawAPI.addFiles(Object.values(data.files));
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
+        const nameWithoutExtension = relativePath.split("/").pop()?.replace(
+          /\.(excalidraw|json)$/,
+          "",
+        ) || relativePath;
+
+        excalidrawAPI.updateScene({
+          elements: data.elements || [],
+          appState: {
+            theme: data.appState?.theme || "light",
+            viewBackgroundColor:
+              data.appState?.viewBackgroundColor || "#ffffff",
+            name: nameWithoutExtension,
+          },
+        });
+      } catch (err) {
+        console.error("Error loading drawing from hash:", err);
+      }
+    };
+
+    const handleHashChange = () => {
+      // If we just saved the drawing, don't trigger a reload!
+      if ((window as any).excalidrawJustSaved) {
+        (window as any).excalidrawJustSaved = false;
+        return;
+      }
+
+      const hash = window.location.hash;
+      if (!hash.startsWith("#id=")) {
+        const uniqueId = "canvas-" + Math.random().toString(36).substring(2, 9);
+        window.location.hash = `id=${uniqueId}`;
+        return;
+      }
+
+      const canvasId = decodeURIComponent(hash.replace("#id=", ""));
+      if (canvasId.startsWith("canvas-")) {
+        // If it's a new canvas, only clear elements if the canvas is not already empty
+        if (excalidrawAPI.getSceneElements().length > 0) {
+          excalidrawAPI.updateScene({ elements: [] });
+        }
+        return;
+      }
+
+      const fileName = canvasId.endsWith(".excalidraw") || canvasId.endsWith(".json")
+        ? canvasId
+        : `${canvasId}.excalidraw`;
+      loadFileFromPath(fileName);
+    };
+
+    handleHashChange();
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, [excalidrawAPI]);
+
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
   const [isCollaborating] = useAtomWithInitialValue(isCollaboratingAtom, () => {

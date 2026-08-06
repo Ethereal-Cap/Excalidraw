@@ -276,56 +276,7 @@ export const GitHubFileExplorer = ({
     }
   }, []);
 
-  // Hash Routing Listener
-  useEffect(() => {
-    if (!isConnected || !excalidrawAPI) return;
 
-    const handleHashChange = () => {
-      const hash = window.location.hash;
-      if (!hash.startsWith("#id=")) {
-        // Generate a new unique ID for a fresh blank canvas
-        const uniqueId = "canvas-" + Math.random().toString(36).substring(2, 9);
-        window.location.hash = `id=${uniqueId}`;
-        return;
-      }
-
-      const canvasId = decodeURIComponent(hash.replace("#id=", ""));
-
-      // If we just saved the drawing, don't trigger a reload of the old content!
-      if (justSavedRef.current) {
-        justSavedRef.current = false;
-        globalLastLoadedPath = canvasId;
-        return;
-      }
-
-      if (globalLastLoadedPath === canvasId) {
-        // Already loaded, ignore sidebar remount
-        return;
-      }
-
-      // If it starts with "canvas-", open it as a fresh blank canvas
-      if (canvasId.startsWith("canvas-")) {
-        excalidrawAPI.updateScene({ elements: [] });
-        setNewFileName(canvasId);
-        setActiveFileKey("");
-        setCurrentFileSha("");
-        globalLastLoadedPath = canvasId;
-        return;
-      }
-
-      // Otherwise, it's a file path! Load it from GitHub
-      const fileName = canvasId.endsWith(".excalidraw") || canvasId.endsWith(".json")
-        ? canvasId
-        : `${canvasId}.excalidraw`;
-      loadFileFromPath(fileName);
-    };
-
-    // Run on initial mount
-    handleHashChange();
-
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
-  }, [isConnected, excalidrawAPI, loadFileFromPath]);
 
   const handleItemClick = (item: GitHubItem) => {
     if (item.type === "dir") {
@@ -454,7 +405,7 @@ export const GitHubFileExplorer = ({
 
       // Sync hash with newly saved name
       // Set the save guard to prevent handleHashChange from reloading the canvas
-      justSavedRef.current = true;
+      (window as any).excalidrawJustSaved = true;
       window.location.hash = `id=${encodeURIComponent(relativeSavedPath)}`;
 
       fetchFiles();
