@@ -438,6 +438,145 @@ export const GitHubFileExplorer = ({
     setCurrentPath(parts.join("/"));
   };
 
+  const deleteFile = async (item: GitHubItem) => {
+    const isAlreadyDeleted = currentPath.startsWith("deleted-files") || currentPath === "deleted-files";
+    
+    if (isAlreadyDeleted) {
+      const confirmPermanent = window.confirm(
+        `"${item.name}" is already in deleted-files. Do you want to permanently delete it?`
+      );
+      if (!confirmPermanent) return;
+
+      setLoading(true);
+      setError(null);
+      setSuccessMsg(null);
+
+      try {
+        const deleteRes = await fetch(
+          `https://api.github.com/repos/${repo}/contents/${item.path}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `token ${token}`,
+              Accept: "application/vnd.github.v3+json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              message: `Permanently delete file: ${item.name}`,
+              sha: item.sha,
+              branch,
+            }),
+          },
+        );
+        if (!deleteRes.ok) {
+          throw new Error("Failed to permanently delete the file.");
+        }
+        setSuccessMsg(`Permanently deleted "${item.name}".`);
+        fetchFiles();
+        setTimeout(() => setSuccessMsg(null), 3000);
+      } catch (err: any) {
+        setError(err.message || "Failed to permanently delete file.");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      `Are you sure you want to delete "${item.name}"? It will be moved to the "deleted-files" folder.`
+    );
+    if (!confirmDelete) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      // 1. Fetch file content to get its Base64 data
+      const res = await fetch(
+        `https://api.github.com/repos/${repo}/contents/${item.path}?ref=${branch}`,
+        {
+          headers: {
+            Authorization: `token ${token}`,
+            Accept: "application/vnd.github.v3+json",
+          },
+        },
+      );
+      if (!res.ok) {
+        throw new Error("Failed to retrieve file content for moving.");
+      }
+      const fileData = await res.json();
+      const contentBase64 = fileData.content;
+      const fileSha = fileData.sha;
+
+      // 2. Write to the new deleted-files destination
+      const cleanRoot = path.replace(/^\/|\/$/g, "");
+      const relativePath = item.path.startsWith(cleanRoot)
+        ? item.path.substring(cleanRoot.length).replace(/^\/|\/$/g, "")
+        : item.path;
+      const deletedDestPath = `${cleanRoot}/deleted-files/${relativePath}`;
+
+      const putRes = await fetch(
+        `https://api.github.com/repos/${repo}/contents/${deletedDestPath}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `token ${token}`,
+            Accept: "application/vnd.github.v3+json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: `Move to deleted-files: ${item.name}`,
+            content: contentBase64,
+            branch,
+          }),
+        },
+      );
+
+      if (!putRes.ok) {
+        throw new Error("Failed to copy file to deleted-files folder.");
+      }
+
+      // 3. Delete original file
+      const deleteRes = await fetch(
+        `https://api.github.com/repos/${repo}/contents/${item.path}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `token ${token}`,
+            Accept: "application/vnd.github.v3+json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: `Delete original file: ${item.name}`,
+            sha: fileSha,
+            branch,
+          }),
+        },
+      );
+
+      if (!deleteRes.ok) {
+        throw new Error("Failed to delete original file.");
+      }
+
+      // Add local deleted-files folder to localFolders state so it's browseable immediately
+      const deletedFolderLocal = currentPath ? `deleted-files/${currentPath}` : "deleted-files";
+      if (!localFolders.includes(deletedFolderLocal)) {
+        setLocalFolders((prev) => [...prev, deletedFolderLocal]);
+      }
+
+      setSuccessMsg(`Moved "${item.name}" to deleted-files.`);
+      fetchFiles();
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: any) {
+      setError(err.message || "Failed to delete file.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Combine items loaded from GitHub with local folders created at this path
   const getCombinedItems = (): GitHubItem[] => {
     const localDirs = localFolders
@@ -613,15 +752,27 @@ export const GitHubFileExplorer = ({
                     <span className="file-name" style={{ fontWeight: 600 }}>{item.name}</span>
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleItemClick(item)}
-                    className="gh-file-load-btn"
-                    title="Click to open this drawing"
-                  >
-                    <span style={{ marginRight: "0.5rem" }}>📄</span>
-                    <span className="file-name">{item.name}</span>
-                  </button>
+                  <div className="gh-file-item-row" style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "space-between" }}>
+                    <button
+                      type="button"
+                      onClick={() => handleItemClick(item)}
+                      className="gh-file-load-btn"
+                      title="Click to open this drawing"
+                      style={{ flexGrow: 1, textAlign: "left", display: "flex", alignItems: "center" }}
+                    >
+                      <span style={{ marginRight: "0.5rem" }}>📄</span>
+                      <span className="file-name">{item.name}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteFile(item)}
+                      className="explorer-btn-link text-danger delete-file-btn"
+                      style={{ padding: "0 0.5rem", fontSize: "1.05rem", cursor: "pointer", opacity: 0.7 }}
+                      title="Delete file (Move to deleted-files)"
+                    >
+                      🗑️
+                    </button>
+                  </div>
                 )}
               </li>
             ))}
