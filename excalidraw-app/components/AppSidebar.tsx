@@ -94,6 +94,13 @@ export const AppSidebar = ({
     <DefaultSidebar>
       <DefaultSidebar.TabTriggers>
         <Sidebar.TabTrigger
+          tab="github"
+          style={{ opacity: openSidebar?.tab === "github" ? 1 : 0.4 }}
+          title="GitHub File Explorer"
+        >
+          {githubTabIcon}
+        </Sidebar.TabTrigger>
+        <Sidebar.TabTrigger
           tab="comments"
           style={{ opacity: openSidebar?.tab === "comments" ? 1 : 0.4 }}
         >
@@ -104,13 +111,6 @@ export const AppSidebar = ({
           style={{ opacity: openSidebar?.tab === "presentation" ? 1 : 0.4 }}
         >
           {presentationIcon}
-        </Sidebar.TabTrigger>
-        <Sidebar.TabTrigger
-          tab="github"
-          style={{ opacity: openSidebar?.tab === "github" ? 1 : 0.4 }}
-          title="GitHub File Explorer"
-        >
-          {githubTabIcon}
         </Sidebar.TabTrigger>
       </DefaultSidebar.TabTriggers>
 

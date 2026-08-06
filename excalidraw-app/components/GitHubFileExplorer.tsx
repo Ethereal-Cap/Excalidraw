@@ -5,10 +5,11 @@ interface GitHubFileExplorerProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
 }
 
-interface GitHubFile {
+interface GitHubItem {
   name: string;
   path: string;
   sha: string;
+  type: "file" | "dir";
   download_url: string;
 }
 
@@ -42,7 +43,11 @@ export const GitHubFileExplorer = ({
     return localStorage.getItem("excalidraw-gh-auth") === "true";
   });
 
-  const [files, setFiles] = useState<GitHubFile[]>([]);
+  const [currentPath, setCurrentPath] = useState(""); // Path relative to "drawings/"
+  const [localFolders, setLocalFolders] = useState<string[]>([]); // List of local folder paths (relative to drawings/)
+  const [newFolderName, setNewFolderName] = useState("");
+
+  const [items, setItems] = useState<GitHubItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,7 +96,9 @@ export const GitHubFileExplorer = ({
     setBranch("master");
     setPath("drawings");
     setIsConnected(false);
-    setFiles([]);
+    setItems([]);
+    setLocalFolders([]);
+    setCurrentPath("");
     setError(null);
   };
 
@@ -102,8 +109,12 @@ export const GitHubFileExplorer = ({
     setLoading(true);
     setError(null);
     try {
-      const cleanPath = path.replace(/^\/|\/$/g, "");
-      const url = `https://api.github.com/repos/${repo}/contents/${cleanPath}?ref=${branch}`;
+      const cleanRoot = path.replace(/^\/|\/$/g, "");
+      const fullPath = currentPath
+        ? `${cleanRoot}/${currentPath}`
+        : cleanRoot;
+
+      const url = `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}`;
       const res = await fetch(url, {
         headers: {
           Authorization: `token ${token}`,
@@ -111,9 +122,9 @@ export const GitHubFileExplorer = ({
         },
       });
 
-      // Handle folder not created yet (404 is normal for first save)
+      // Handle folder not created yet on GitHub (404 is normal)
       if (res.status === 404) {
-        setFiles([]);
+        setItems([]);
         return;
       }
 
@@ -123,21 +134,32 @@ export const GitHubFileExplorer = ({
 
       const data = await res.json();
       if (Array.isArray(data)) {
-        const filtered = data.filter(
-          (file: any) =>
-            file.type === "file" &&
-            (file.name.endsWith(".excalidraw") || file.name.endsWith(".json")),
-        );
-        setFiles(filtered);
+        // Map and filter elements
+        const mapped: GitHubItem[] = data
+          .filter(
+            (item: any) =>
+              item.type === "dir" ||
+              (item.type === "file" &&
+                (item.name.endsWith(".excalidraw") ||
+                  item.name.endsWith(".json"))),
+          )
+          .map((item: any) => ({
+            name: item.name,
+            path: item.path,
+            sha: item.sha,
+            type: item.type,
+            download_url: item.download_url,
+          }));
+        setItems(mapped);
       } else {
-        setFiles([]);
+        setItems([]);
       }
     } catch (err: any) {
       setError(err.message || "Failed to fetch files from GitHub.");
     } finally {
       setLoading(false);
     }
-  }, [isConnected, path, repo, branch, token]);
+  }, [isConnected, path, currentPath, repo, branch, token]);
 
   useEffect(() => {
     if (isConnected) {
@@ -145,11 +167,10 @@ export const GitHubFileExplorer = ({
     }
   }, [isConnected, fetchFiles]);
 
-  const loadFile = async (file: GitHubFile) => {
+  const loadFile = async (file: GitHubItem) => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch file info directly from API instead of raw URL to bypass CORS headers restrictions
       const res = await fetch(
         `https://api.github.com/repos/${repo}/contents/${file.path}?ref=${branch}`,
         {
@@ -173,16 +194,6 @@ export const GitHubFileExplorer = ({
           /\.(excalidraw|json)$/,
           "",
         );
-
-        // Load files (images) first if they exist
-        if (data.files) {
-          try {
-            excalidrawAPI.addFiles(Object.values(data.files));
-          } catch (e) {
-            console.error("Error adding files to scene:", e);
-          }
-        }
-
         excalidrawAPI.updateScene({
           elements: data.elements || [],
           appState: {
@@ -225,9 +236,11 @@ export const GitHubFileExplorer = ({
     setSuccessMsg(null);
 
     try {
-      const cleanPath = path.replace(/^\/|\/$/g, "");
-      const filePath = cleanPath ? `${cleanPath}/${name}` : name;
-      const checkUrl = `https://api.github.com/repos/${repo}/contents/${filePath}?ref=${branch}`;
+      const cleanRoot = path.replace(/^\/|\/$/g, "");
+      const fullPath = currentPath
+        ? `${cleanRoot}/${currentPath}/${name}`
+        : `${cleanRoot}/${name}`;
+      const checkUrl = `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}`;
 
       // Check if file exists to get existing SHA
       let existingSha = "";
@@ -265,7 +278,7 @@ export const GitHubFileExplorer = ({
 
       // Commit to GitHub
       const saveRes = await fetch(
-        `https://api.github.com/repos/${repo}/contents/${filePath}`,
+        `https://api.github.com/repos/${repo}/contents/${fullPath}`,
         {
           method: "PUT",
           headers: {
@@ -287,6 +300,12 @@ export const GitHubFileExplorer = ({
       }
 
       setSuccessMsg(`Successfully saved "${name}" to GitHub!`);
+      
+      // If we saved in a local folder, add it permanently
+      if (currentPath && !localFolders.includes(currentPath)) {
+        setLocalFolders((prev) => [...prev, currentPath]);
+      }
+
       fetchFiles();
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {
@@ -294,6 +313,72 @@ export const GitHubFileExplorer = ({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCreateFolder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFolderName.trim()) {
+      return;
+    }
+    const cleanName = newFolderName.trim().replace(/[\/\\?%*:|"<>]/g, "");
+    const folderPath = currentPath
+      ? `${currentPath}/${cleanName}`
+      : cleanName;
+
+    if (!localFolders.includes(folderPath)) {
+      setLocalFolders((prev) => [...prev, folderPath]);
+    }
+    setNewFolderName("");
+  };
+
+  const navigateInto = (folderName: string) => {
+    setCurrentPath((prev) => (prev ? `${prev}/${folderName}` : folderName));
+  };
+
+  const navigateBack = () => {
+    if (!currentPath) {
+      return;
+    }
+    const parts = currentPath.split("/");
+    parts.pop();
+    setCurrentPath(parts.join("/"));
+  };
+
+  // Combine items loaded from GitHub with local folders created at this path
+  const getCombinedItems = (): GitHubItem[] => {
+    // Get unique local folders created in the current directory level
+    const localDirs = localFolders
+      .filter((fp) => {
+        const parts = fp.split("/");
+        const parent = parts.slice(0, -1).join("/");
+        return parent === currentPath;
+      })
+      .map((fp) => {
+        const name = fp.split("/").pop() || fp;
+        return {
+          name,
+          path: `drawings/${fp}`,
+          sha: `local-${fp}`,
+          type: "dir" as const,
+          download_url: "",
+        };
+      });
+
+    // Merge them together, prioritizing GitHub items
+    const merged = [...items];
+    localDirs.forEach((ld) => {
+      if (!merged.some((i) => i.type === "dir" && i.name === ld.name)) {
+        merged.push(ld);
+      }
+    });
+
+    // Sort: directories first, then files
+    return merged.sort((a, b) => {
+      if (a.type === b.type) {
+        return a.name.localeCompare(b.name);
+      }
+      return a.type === "dir" ? -1 : 1;
+    });
   };
 
   if (!isConnected) {
@@ -322,6 +407,9 @@ export const GitHubFileExplorer = ({
       </div>
     );
   }
+
+  const combinedItems = getCombinedItems();
+  const folderParts = currentPath.split("/").filter(Boolean);
 
   return (
     <div className="github-explorer-panel">
@@ -360,6 +448,27 @@ export const GitHubFileExplorer = ({
         </form>
       </div>
 
+      <div className="explorer-section">
+        <h5>Create New Folder</h5>
+        <form onSubmit={handleCreateFolder} className="gh-save-form">
+          <div className="save-input-group">
+            <input
+              type="text"
+              placeholder="folder-name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              required
+            />
+            <button
+              type="submit"
+              className="explorer-btn explorer-btn-primary"
+            >
+              Create
+            </button>
+          </div>
+        </form>
+      </div>
+
       {error && <div className="explorer-error">{error}</div>}
       {successMsg && <div className="explorer-success">{successMsg}</div>}
 
@@ -375,24 +484,55 @@ export const GitHubFileExplorer = ({
           </button>
         </div>
 
+        {/* Path Breadcrumbs Bar */}
+        <div className="path-breadcrumbs" style={{ marginBottom: "0.75rem" }}>
+          {currentPath && (
+            <button
+              type="button"
+              onClick={navigateBack}
+              className="explorer-btn-link back-btn"
+              style={{ marginRight: "0.5rem" }}
+            >
+              ← Back
+            </button>
+          )}
+          <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>
+            Location: <code>/{currentPath || "drawings"}</code>
+          </span>
+        </div>
+
         {loading ? (
           <div className="explorer-loading">Loading files...</div>
-        ) : files.length === 0 ? (
+        ) : combinedItems.length === 0 ? (
           <div className="explorer-empty">
-            No Excalidraw files found in folder.
+            Folder is empty. Save a drawing or create a subfolder here!
           </div>
         ) : (
           <ul className="gh-file-list">
-            {files.map((file) => (
-              <li key={file.sha} className="gh-file-item">
-                <button
-                  type="button"
-                  onClick={() => loadFile(file)}
-                  className="gh-file-load-btn"
-                  title="Click to open this drawing"
-                >
-                  <span className="file-name">{file.name}</span>
-                </button>
+            {combinedItems.map((item) => (
+              <li key={item.sha} className="gh-file-item">
+                {item.type === "dir" ? (
+                  <button
+                    type="button"
+                    onClick={() => navigateInto(item.name)}
+                    className="gh-file-load-btn folder-item"
+                    style={{ background: "rgba(112, 72, 232, 0.05)", borderColor: "rgba(112, 72, 232, 0.2)" }}
+                    title="Click to enter this folder"
+                  >
+                    <span style={{ marginRight: "0.5rem" }}>📁</span>
+                    <span className="file-name" style={{ fontWeight: 600 }}>{item.name}</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => loadFile(item)}
+                    className="gh-file-load-btn"
+                    title="Click to open this drawing"
+                  >
+                    <span style={{ marginRight: "0.5rem" }}>📄</span>
+                    <span className="file-name">{item.name}</span>
+                  </button>
+                )}
               </li>
             ))}
           </ul>
