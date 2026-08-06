@@ -22,6 +22,9 @@ const PRESET_REPO = "Ethereal-Cap/Excalidraw";
 const PRESET_BRANCH = "drawings";
 const PRESET_PATH = "drawings"; // Store drawings in a dedicated subfolder
 
+// Global tracking variable to prevent reloading identical hash on sidebar mount
+let globalLastLoadedPath = "";
+
 export const GitHubFileExplorer = ({
   excalidrawAPI,
 }: GitHubFileExplorerProps) => {
@@ -33,7 +36,7 @@ export const GitHubFileExplorer = ({
     () => localStorage.getItem("excalidraw-gh-repo") || "",
   );
   const [branch, setBranch] = useState(
-    () => localStorage.getItem("excalidraw-gh-branch") || "master",
+    () => localStorage.getItem("excalidraw-gh-branch") || "drawings",
   );
   const [path, setPath] = useState(
     () => localStorage.getItem("excalidraw-gh-path") || "drawings",
@@ -65,6 +68,10 @@ export const GitHubFileExplorer = ({
   const [newFileName, setNewFileName] = useState("");
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Active file tracking to prevent duplicate network SHA queries and lag conflict errors
+  const [activeFileKey, setActiveFileKey] = useState(""); // relative path without extension
+  const [currentFileSha, setCurrentFileSha] = useState("");
 
   // Keep ref to avoid stale closure in hashchange event listener
   const stateRef = useRef({ isConnected, token, repo, branch, path, currentPath, excalidrawAPI });
@@ -120,12 +127,15 @@ export const GitHubFileExplorer = ({
     localStorage.removeItem("excalidraw-gh-local-folders");
     setToken("");
     setRepo("");
-    setBranch("master");
+    setBranch("drawings");
     setPath("drawings");
     setIsConnected(false);
     setItems([]);
     setLocalFolders([]);
     setCurrentPath("");
+    setActiveFileKey("");
+    setCurrentFileSha("");
+    globalLastLoadedPath = "";
     setError(null);
   };
 
@@ -141,8 +151,9 @@ export const GitHubFileExplorer = ({
         ? `${cleanRoot}/${currentPath}`
         : cleanRoot;
 
-      const url = `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}`;
+      const url = `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}&_t=${Date.now()}`;
       const res = await fetch(url, {
+        cache: "no-store",
         headers: {
           Authorization: `token ${token}`,
           Accept: "application/vnd.github.v3+json",
@@ -203,7 +214,7 @@ export const GitHubFileExplorer = ({
       const cleanRoot = s.path.replace(/^\/|\/$/g, "");
       const fullPath = cleanRoot ? `${cleanRoot}/${relativePath}` : relativePath;
 
-    const res = await fetch(
+      const res = await fetch(
         `https://api.github.com/repos/${s.repo}/contents/${fullPath}?ref=${s.branch}&_t=${Date.now()}`,
         {
           cache: "no-store",
@@ -250,8 +261,14 @@ export const GitHubFileExplorer = ({
       const fileDirParts = relativePath.split("/");
       fileDirParts.pop(); // Remove filename
       const folderPath = fileDirParts.join("/");
+      
+      const fileKey = relativePath.replace(/\.(excalidraw|json)$/, "");
+      
       setCurrentPath(folderPath);
       setNewFileName(nameWithoutExtension);
+      setActiveFileKey(fileKey);
+      setCurrentFileSha(fileData.sha);
+      globalLastLoadedPath = fileKey;
     } catch (err: any) {
       setError(err.message || "Failed to load drawing.");
     } finally {
@@ -264,12 +281,6 @@ export const GitHubFileExplorer = ({
     if (!isConnected || !excalidrawAPI) return;
 
     const handleHashChange = () => {
-      // If we just saved the drawing, don't trigger a reload of the old content!
-      if (justSavedRef.current) {
-        justSavedRef.current = false;
-        return;
-      }
-
       const hash = window.location.hash;
       if (!hash.startsWith("#id=")) {
         // Generate a new unique ID for a fresh blank canvas
@@ -279,11 +290,26 @@ export const GitHubFileExplorer = ({
       }
 
       const canvasId = decodeURIComponent(hash.replace("#id=", ""));
-      
+
+      // If we just saved the drawing, don't trigger a reload of the old content!
+      if (justSavedRef.current) {
+        justSavedRef.current = false;
+        globalLastLoadedPath = canvasId;
+        return;
+      }
+
+      if (globalLastLoadedPath === canvasId) {
+        // Already loaded, ignore sidebar remount
+        return;
+      }
+
       // If it starts with "canvas-", open it as a fresh blank canvas
       if (canvasId.startsWith("canvas-")) {
         excalidrawAPI.updateScene({ elements: [] });
         setNewFileName(canvasId);
+        setActiveFileKey("");
+        setCurrentFileSha("");
+        globalLastLoadedPath = canvasId;
         return;
       }
 
@@ -338,26 +364,34 @@ export const GitHubFileExplorer = ({
       const fullPath = currentPath
         ? `${cleanRoot}/${currentPath}/${name}`
         : `${cleanRoot}/${name}`;
-      const checkUrl = `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}&_t=${Date.now()}`;
+      
+      const nameWithoutExtension = name.replace(/\.(excalidraw|json)$/, "");
+      const relativeSavedPath = currentPath ? `${currentPath}/${nameWithoutExtension}` : nameWithoutExtension;
 
-      // Check if file exists to get existing SHA
+      // Determine existing SHA
       let existingSha = "";
       let isOverwriting = false;
-      const checkRes = await fetch(checkUrl, {
-        cache: "no-store",
-        headers: {
-          Authorization: `token ${token}`,
-          Accept: "application/vnd.github.v3+json",
-        },
-      });
-      if (checkRes.ok) {
-        const fileData = await checkRes.json();
-        existingSha = fileData.sha;
+      
+      if (activeFileKey === relativeSavedPath && currentFileSha) {
+        existingSha = currentFileSha;
         isOverwriting = true;
+      } else {
+        const checkUrl = `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}&_t=${Date.now()}`;
+        const checkRes = await fetch(checkUrl, {
+          cache: "no-store",
+          headers: {
+            Authorization: `token ${token}`,
+            Accept: "application/vnd.github.v3+json",
+          },
+        });
+        if (checkRes.ok) {
+          const fileData = await checkRes.json();
+          existingSha = fileData.sha;
+          isOverwriting = true;
+        }
       }
 
       // Sync canvas name with saved file name
-      const nameWithoutExtension = name.replace(/\.(excalidraw|json)$/, "");
       excalidrawAPI.updateScene({
         appState: {
           name: nameWithoutExtension,
@@ -397,8 +431,15 @@ export const GitHubFileExplorer = ({
       );
 
       if (!saveRes.ok) {
-        throw new Error(`Failed to save file: ${saveRes.statusText}`);
+        const errorData = await saveRes.json().catch(() => ({}));
+        throw new Error(`Failed to save file: ${errorData.message || saveRes.statusText || saveRes.status}`);
       }
+
+      const saveData = await saveRes.json();
+      const newSha = saveData.content?.sha || "";
+      setCurrentFileSha(newSha);
+      setActiveFileKey(relativeSavedPath);
+      globalLastLoadedPath = relativeSavedPath;
 
       if (isOverwriting) {
         setSuccessMsg(`Successfully updated "${name}" on GitHub!`);
@@ -412,8 +453,6 @@ export const GitHubFileExplorer = ({
       }
 
       // Sync hash with newly saved name
-      const relativeSavedPath = currentPath ? `${currentPath}/${nameWithoutExtension}` : nameWithoutExtension;
-      
       // Set the save guard to prevent handleHashChange from reloading the canvas
       justSavedRef.current = true;
       window.location.hash = `id=${encodeURIComponent(relativeSavedPath)}`;
@@ -487,9 +526,19 @@ export const GitHubFileExplorer = ({
           },
         );
         if (!deleteRes.ok) {
-          throw new Error("Failed to permanently delete the file.");
+          const errorData = await deleteRes.json().catch(() => ({}));
+          throw new Error(`Failed to delete: ${errorData.message || deleteRes.statusText}`);
         }
         setSuccessMsg(`Permanently deleted "${item.name}".`);
+        
+        // If deleted file matches active file, clear active key
+        const cleanRoot = path.replace(/^\/|\/$/g, "");
+        const relativeItemPath = item.path.substring(cleanRoot.length).replace(/^\/|\/$/g, "").replace(/\.(excalidraw|json)$/, "");
+        if (activeFileKey === relativeItemPath) {
+          setActiveFileKey("");
+          setCurrentFileSha("");
+        }
+
         fetchFiles();
         setTimeout(() => setSuccessMsg(null), 3000);
       } catch (err: any) {
@@ -514,8 +563,9 @@ export const GitHubFileExplorer = ({
     try {
       // 1. Fetch file content to get its Base64 data
       const res = await fetch(
-        `https://api.github.com/repos/${repo}/contents/${item.path}?ref=${branch}`,
+        `https://api.github.com/repos/${repo}/contents/${item.path}?ref=${branch}&_t=${Date.now()}`,
         {
+          cache: "no-store",
           headers: {
             Authorization: `token ${token}`,
             Accept: "application/vnd.github.v3+json",
@@ -583,6 +633,13 @@ export const GitHubFileExplorer = ({
       const deletedFolderLocal = currentPath ? `deleted-files/${currentPath}` : "deleted-files";
       if (!localFolders.includes(deletedFolderLocal)) {
         setLocalFolders((prev) => [...prev, deletedFolderLocal]);
+      }
+
+      // If deleted file matches active file, clear active key
+      const relativeItemPath = item.path.substring(cleanRoot.length).replace(/^\/|\/$/g, "").replace(/\.(excalidraw|json)$/, "");
+      if (activeFileKey === relativeItemPath) {
+        setActiveFileKey("");
+        setCurrentFileSha("");
       }
 
       setSuccessMsg(`Moved "${item.name}" to deleted-files.`);
