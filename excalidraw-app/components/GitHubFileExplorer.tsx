@@ -44,7 +44,18 @@ export const GitHubFileExplorer = ({
   });
 
   const [currentPath, setCurrentPath] = useState(""); // Path relative to "drawings/"
-  const [localFolders, setLocalFolders] = useState<string[]>([]); // List of local folder paths (relative to drawings/)
+  const [localFolders, setLocalFolders] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("excalidraw-gh-local-folders") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem("excalidraw-gh-local-folders", JSON.stringify(localFolders));
+  }, [localFolders]);
+
   const [newFolderName, setNewFolderName] = useState("");
 
   const [items, setItems] = useState<GitHubItem[]>([]);
@@ -97,6 +108,7 @@ export const GitHubFileExplorer = ({
     localStorage.removeItem("excalidraw-gh-branch");
     localStorage.removeItem("excalidraw-gh-path");
     localStorage.removeItem("excalidraw-gh-auth");
+    localStorage.removeItem("excalidraw-gh-local-folders");
     setToken("");
     setRepo("");
     setBranch("master");
