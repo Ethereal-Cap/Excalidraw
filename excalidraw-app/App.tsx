@@ -229,7 +229,9 @@ const initializeScene = async (opts: {
   );
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
 
-  const localDataState = importFromLocalStorage();
+  const hash = window.location.hash;
+  const isNewCanvas = !hash || hash.startsWith("#id=canvas-") || !hash.startsWith("#id=");
+  const localDataState = isNewCanvas ? null : importFromLocalStorage();
 
   let scene: Omit<
     RestoredDataState,
@@ -239,11 +241,11 @@ const initializeScene = async (opts: {
   > & {
     scrollToContent?: boolean;
   } = {
-    elements: restoreElements(localDataState?.elements, null, {
+    elements: restoreElements(localDataState?.elements || [], null, {
       repairBindings: true,
       deleteInvisibleElements: true,
     }),
-    appState: restoreAppState(localDataState?.appState, null),
+    appState: restoreAppState(localDataState?.appState || null, null),
   };
 
   let roomLinkData = getCollaborationLinkData(window.location.href);

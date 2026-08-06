@@ -677,8 +677,9 @@ export const GitHubFileExplorer = ({
           Disconnect
         </button>
       </div>
-      <div className="explorer-meta-info">
-        Connected to Shared Team Repository
+      <div className="explorer-meta-info" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>Connected to Shared Team Repository</span>
+        <span style={{ opacity: 0.6, fontSize: "0.8rem", fontWeight: "bold" }}>v1.0</span>
       </div>
 
       <div className="explorer-section">
