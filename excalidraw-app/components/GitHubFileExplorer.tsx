@@ -68,6 +68,7 @@ export const GitHubFileExplorer = ({
 
   // Keep ref to avoid stale closure in hashchange event listener
   const stateRef = useRef({ isConnected, token, repo, branch, path, currentPath, excalidrawAPI });
+  const justSavedRef = useRef(false);
   useEffect(() => {
     stateRef.current = { isConnected, token, repo, branch, path, currentPath, excalidrawAPI };
   }, [isConnected, token, repo, branch, path, currentPath, excalidrawAPI]);
@@ -202,9 +203,10 @@ export const GitHubFileExplorer = ({
       const cleanRoot = s.path.replace(/^\/|\/$/g, "");
       const fullPath = cleanRoot ? `${cleanRoot}/${relativePath}` : relativePath;
 
-      const res = await fetch(
-        `https://api.github.com/repos/${s.repo}/contents/${fullPath}?ref=${s.branch}`,
+    const res = await fetch(
+        `https://api.github.com/repos/${s.repo}/contents/${fullPath}?ref=${s.branch}&_t=${Date.now()}`,
         {
+          cache: "no-store",
           headers: {
             Authorization: `token ${s.token}`,
             Accept: "application/vnd.github.v3+json",
@@ -262,6 +264,12 @@ export const GitHubFileExplorer = ({
     if (!isConnected || !excalidrawAPI) return;
 
     const handleHashChange = () => {
+      // If we just saved the drawing, don't trigger a reload of the old content!
+      if (justSavedRef.current) {
+        justSavedRef.current = false;
+        return;
+      }
+
       const hash = window.location.hash;
       if (!hash.startsWith("#id=")) {
         // Generate a new unique ID for a fresh blank canvas
@@ -330,11 +338,13 @@ export const GitHubFileExplorer = ({
       const fullPath = currentPath
         ? `${cleanRoot}/${currentPath}/${name}`
         : `${cleanRoot}/${name}`;
-      const checkUrl = `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}`;
+      const checkUrl = `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}&_t=${Date.now()}`;
 
       // Check if file exists to get existing SHA
       let existingSha = "";
+      let isOverwriting = false;
       const checkRes = await fetch(checkUrl, {
+        cache: "no-store",
         headers: {
           Authorization: `token ${token}`,
           Accept: "application/vnd.github.v3+json",
@@ -343,6 +353,7 @@ export const GitHubFileExplorer = ({
       if (checkRes.ok) {
         const fileData = await checkRes.json();
         existingSha = fileData.sha;
+        isOverwriting = true;
       }
 
       // Sync canvas name with saved file name
@@ -377,7 +388,7 @@ export const GitHubFileExplorer = ({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            message: `Save board: ${name}`,
+            message: isOverwriting ? `Update board: ${name}` : `Save board: ${name}`,
             content: contentBase64,
             branch,
             ...(existingSha ? { sha: existingSha } : {}),
@@ -389,7 +400,11 @@ export const GitHubFileExplorer = ({
         throw new Error(`Failed to save file: ${saveRes.statusText}`);
       }
 
-      setSuccessMsg(`Successfully saved "${name}" to GitHub!`);
+      if (isOverwriting) {
+        setSuccessMsg(`Successfully updated "${name}" on GitHub!`);
+      } else {
+        setSuccessMsg(`Successfully saved "${name}" to GitHub!`);
+      }
       
       // If we saved in a local folder, add it permanently
       if (currentPath && !localFolders.includes(currentPath)) {
@@ -398,6 +413,9 @@ export const GitHubFileExplorer = ({
 
       // Sync hash with newly saved name
       const relativeSavedPath = currentPath ? `${currentPath}/${nameWithoutExtension}` : nameWithoutExtension;
+      
+      // Set the save guard to prevent handleHashChange from reloading the canvas
+      justSavedRef.current = true;
       window.location.hash = `id=${encodeURIComponent(relativeSavedPath)}`;
 
       fetchFiles();
