@@ -173,16 +173,25 @@ export const GitHubFileExplorer = ({
           /\.(excalidraw|json)$/,
           "",
         );
+
+        // Load files (images) first if they exist
+        if (data.files) {
+          try {
+            excalidrawAPI.addFiles(Object.values(data.files));
+          } catch (e) {
+            console.error("Error adding files to scene:", e);
+          }
+        }
+
         excalidrawAPI.updateScene({
           elements: data.elements || [],
           appState: {
-            ...data.appState,
-            name: nameWithoutExtension, // Override Excalidraw's title with filename
+            theme: data.appState?.theme || "light",
             viewBackgroundColor:
               data.appState?.viewBackgroundColor || "#ffffff",
+            name: nameWithoutExtension,
           },
-          files: data.files || {},
-        } as any);
+        });
         setNewFileName(nameWithoutExtension); // Update local input field
         setSuccessMsg(`Loaded "${file.name}"`);
         setTimeout(() => setSuccessMsg(null), 3000);
