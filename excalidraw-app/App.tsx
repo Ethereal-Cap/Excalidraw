@@ -702,21 +702,25 @@ const ExcalidrawWrapper = () => {
       ) {
         // don't sync if local state is newer or identical to browser state
         if (isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_DATA_STATE)) {
-          const localDataState = importFromLocalStorage();
-          const username = importUsernameFromLocalStorage();
-          setLangCode(getPreferredLanguage());
-          excalidrawAPI.updateScene({
-            ...localDataState,
-            captureUpdate: CaptureUpdateAction.NEVER,
-          });
-          LibraryIndexedDBAdapter.load().then((data) => {
-            if (data) {
-              excalidrawAPI.updateLibrary({
-                libraryItems: data.libraryItems,
-              });
-            }
-          });
-          collabAPI?.setUsername(username || "");
+          const currentHash = window.location.hash;
+          const isNewCanvasSession = !currentHash || currentHash.startsWith("#id=canvas-") || !currentHash.startsWith("#id=");
+          if (!isNewCanvasSession) {
+            const localDataState = importFromLocalStorage();
+            const username = importUsernameFromLocalStorage();
+            setLangCode(getPreferredLanguage());
+            excalidrawAPI.updateScene({
+              ...localDataState,
+              captureUpdate: CaptureUpdateAction.NEVER,
+            });
+            LibraryIndexedDBAdapter.load().then((data) => {
+              if (data) {
+                excalidrawAPI.updateLibrary({
+                  libraryItems: data.libraryItems,
+                });
+              }
+            });
+            collabAPI?.setUsername(username || "");
+          }
         }
 
         if (isBrowserStorageStateNewer(STORAGE_KEYS.VERSION_FILES)) {
