@@ -72,6 +72,14 @@ export const GitHubFileExplorer = ({
     stateRef.current = { isConnected, token, repo, branch, path, currentPath, excalidrawAPI };
   }, [isConnected, token, repo, branch, path, currentPath, excalidrawAPI]);
 
+  // Automatically migrate old users to the new drawings branch
+  useEffect(() => {
+    if (isConnected && localStorage.getItem("excalidraw-gh-branch") === "master") {
+      localStorage.setItem("excalidraw-gh-branch", "drawings");
+      setBranch("drawings");
+    }
+  }, [isConnected]);
+
   // Sync Excalidraw canvas name with file name input
   useEffect(() => {
     if (excalidrawAPI && isConnected) {
