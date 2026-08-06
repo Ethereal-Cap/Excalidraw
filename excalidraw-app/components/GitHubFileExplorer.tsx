@@ -19,7 +19,7 @@ const REVERSED_TOKEN = "T8BcM4XQOeWkeYLZIX98sunNF7AIht88GHao_phg";
 const PRESET_TOKEN = REVERSED_TOKEN.split("").reverse().join("");
 const PRESET_REPO = "Ethereal-Cap/Excalidraw";
 const PRESET_BRANCH = "master";
-const PRESET_PATH = "";
+const PRESET_PATH = "drawings"; // Store drawings in a dedicated subfolder
 
 export const GitHubFileExplorer = ({
   excalidrawAPI,
@@ -35,7 +35,7 @@ export const GitHubFileExplorer = ({
     () => localStorage.getItem("excalidraw-gh-branch") || "master",
   );
   const [path, setPath] = useState(
-    () => localStorage.getItem("excalidraw-gh-path") || "",
+    () => localStorage.getItem("excalidraw-gh-path") || "drawings",
   );
 
   const [isConnected, setIsConnected] = useState(() => {
@@ -49,6 +49,16 @@ export const GitHubFileExplorer = ({
   const [newFileName, setNewFileName] = useState("");
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Sync Excalidraw canvas name with file name input
+  useEffect(() => {
+    if (excalidrawAPI && isConnected) {
+      const activeName = excalidrawAPI.getAppState().name;
+      if (activeName && activeName !== "Untitled") {
+        setNewFileName(activeName);
+      }
+    }
+  }, [excalidrawAPI, isConnected]);
 
   const handleConnect = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +89,7 @@ export const GitHubFileExplorer = ({
     setToken("");
     setRepo("");
     setBranch("master");
-    setPath("");
+    setPath("drawings");
     setIsConnected(false);
     setFiles([]);
     setError(null);
@@ -100,6 +110,12 @@ export const GitHubFileExplorer = ({
           Accept: "application/vnd.github.v3+json",
         },
       });
+
+      // Handle folder not created yet (404 is normal for first save)
+      if (res.status === 404) {
+        setFiles([]);
+        return;
+      }
 
       if (!res.ok) {
         throw new Error(`GitHub API Error: ${res.statusText} (${res.status})`);
@@ -133,26 +149,41 @@ export const GitHubFileExplorer = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(file.download_url, {
-        headers: {
-          Authorization: `token ${token}`,
+      // Fetch file info directly from API instead of raw URL to bypass CORS headers restrictions
+      const res = await fetch(
+        `https://api.github.com/repos/${repo}/contents/${file.path}?ref=${branch}`,
+        {
+          headers: {
+            Authorization: `token ${token}`,
+            Accept: "application/vnd.github.v3+json",
+          },
         },
-      });
+      );
       if (!res.ok) {
         throw new Error("Failed to download drawing file.");
       }
-      const data = await res.json();
+      const fileData = await res.json();
+      const decodedContent = decodeURIComponent(
+        escape(atob(fileData.content.replace(/\s/g, ""))),
+      );
+      const data = JSON.parse(decodedContent);
 
       if (excalidrawAPI) {
+        const nameWithoutExtension = file.name.replace(
+          /\.(excalidraw|json)$/,
+          "",
+        );
         excalidrawAPI.updateScene({
           elements: data.elements || [],
           appState: {
             ...data.appState,
+            name: nameWithoutExtension, // Override Excalidraw's title with filename
             viewBackgroundColor:
               data.appState?.viewBackgroundColor || "#ffffff",
           },
           files: data.files || {},
         } as any);
+        setNewFileName(nameWithoutExtension); // Update local input field
         setSuccessMsg(`Loaded "${file.name}"`);
         setTimeout(() => setSuccessMsg(null), 3000);
       } else {
@@ -202,6 +233,14 @@ export const GitHubFileExplorer = ({
         existingSha = fileData.sha;
       }
 
+      // Sync canvas name with saved file name
+      const nameWithoutExtension = name.replace(/\.(excalidraw|json)$/, "");
+      excalidrawAPI.updateScene({
+        appState: {
+          name: nameWithoutExtension,
+        },
+      } as any);
+
       // Serialize scene
       const sceneData = {
         type: "excalidraw",
@@ -239,7 +278,6 @@ export const GitHubFileExplorer = ({
       }
 
       setSuccessMsg(`Successfully saved "${name}" to GitHub!`);
-      setNewFileName("");
       fetchFiles();
       setTimeout(() => setSuccessMsg(null), 4000);
     } catch (err: any) {
