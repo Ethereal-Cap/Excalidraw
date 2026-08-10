@@ -423,8 +423,16 @@ const ExcalidrawWrapper = () => {
         const cleanRoot = pathVal.replace(/^\/|\/$/g, "");
         const fullPath = cleanRoot ? `${cleanRoot}/${relativePath}` : relativePath;
 
+        let contentRaw = "";
+
+        // 1. Try contents API first with path segment encoding
+        const encodedFullPath = fullPath
+          .split("/")
+          .map((segment) => encodeURIComponent(segment))
+          .join("/");
+
         const res = await fetch(
-          `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}&_t=${Date.now()}`,
+          `https://api.github.com/repos/${repo}/contents/${encodedFullPath}?ref=${branch}&_t=${Date.now()}`,
           {
             cache: "no-store",
             headers: {
@@ -433,12 +441,56 @@ const ExcalidrawWrapper = () => {
             },
           },
         );
-        if (!res.ok) {
-          throw new Error("File not found on GitHub");
+
+        if (res.ok) {
+          const fileData = await res.json();
+          if (fileData.content) {
+            contentRaw = fileData.content;
+          }
         }
-        const fileData = await res.json();
+
+        // 2. If contents API fails (e.g. file > 1MB), fetch Git Tree to get SHA & use Blobs API
+        if (!contentRaw) {
+          const treeRes = await fetch(
+            `https://api.github.com/repos/${repo}/git/trees/${branch}?recursive=1&_t=${Date.now()}`,
+            {
+              cache: "no-store",
+              headers: {
+                Authorization: `token ${token}`,
+                Accept: "application/vnd.github.v3+json",
+              },
+            },
+          );
+          if (treeRes.ok) {
+            const treeData = await treeRes.json();
+            const match = treeData.tree?.find((item: any) => item.path === fullPath);
+            if (match && match.sha) {
+              const blobRes = await fetch(
+                `https://api.github.com/repos/${repo}/git/blobs/${match.sha}?_t=${Date.now()}`,
+                {
+                  cache: "no-store",
+                  headers: {
+                    Authorization: `token ${token}`,
+                    Accept: "application/vnd.github.v3+json",
+                  },
+                },
+              );
+              if (blobRes.ok) {
+                const blobData = await blobRes.json();
+                if (blobData.content) {
+                  contentRaw = blobData.content;
+                }
+              }
+            }
+          }
+        }
+
+        if (!contentRaw) {
+          throw new Error("Could not retrieve file content from GitHub.");
+        }
+
         const decodedContent = decodeURIComponent(
-          escape(atob(fileData.content.replace(/\s/g, ""))),
+          escape(atob(contentRaw.replace(/\s/g, ""))),
         );
         const data = JSON.parse(decodedContent);
 

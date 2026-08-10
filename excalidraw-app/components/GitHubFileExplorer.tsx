@@ -22,6 +22,9 @@ const PRESET_REPO = "Ethereal-Cap/Excalidraw";
 const PRESET_BRANCH = "drawings";
 const PRESET_PATH = "drawings"; // Store drawings in a dedicated subfolder
 
+const encodePathSegments = (p: string) =>
+  p.split("/").map((segment) => encodeURIComponent(segment)).join("/");
+
 // Global tracking variable to prevent reloading identical hash on sidebar mount
 let globalLastLoadedPath = "";
 
@@ -151,7 +154,8 @@ export const GitHubFileExplorer = ({
         ? `${cleanRoot}/${currentPath}`
         : cleanRoot;
 
-      const url = `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}&_t=${Date.now()}`;
+      const encodedFullPath = encodePathSegments(fullPath);
+      const url = `https://api.github.com/repos/${repo}/contents/${encodedFullPath}?ref=${branch}&_t=${Date.now()}`;
       const res = await fetch(url, {
         cache: "no-store",
         headers: {
@@ -323,11 +327,13 @@ export const GitHubFileExplorer = ({
       let existingSha = "";
       let isOverwriting = false;
       
+      const encodedFullPath = encodePathSegments(fullPath);
+
       if (activeFileKey === relativeSavedPath && currentFileSha) {
         existingSha = currentFileSha;
         isOverwriting = true;
       } else {
-        const checkUrl = `https://api.github.com/repos/${repo}/contents/${fullPath}?ref=${branch}&_t=${Date.now()}`;
+        const checkUrl = `https://api.github.com/repos/${repo}/contents/${encodedFullPath}?ref=${branch}&_t=${Date.now()}`;
         const checkRes = await fetch(checkUrl, {
           cache: "no-store",
           headers: {
@@ -364,7 +370,7 @@ export const GitHubFileExplorer = ({
 
       // Commit to GitHub
       const saveRes = await fetch(
-        `https://api.github.com/repos/${repo}/contents/${fullPath}`,
+        `https://api.github.com/repos/${repo}/contents/${encodedFullPath}`,
         {
           method: "PUT",
           headers: {
@@ -679,7 +685,7 @@ export const GitHubFileExplorer = ({
       </div>
       <div className="explorer-meta-info" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span>Connected to Shared Team Repository</span>
-        <span style={{ opacity: 0.6, fontSize: "0.8rem", fontWeight: "bold" }}>v1.02</span>
+        <span style={{ opacity: 0.6, fontSize: "0.8rem", fontWeight: "bold" }}>v1.03</span>
       </div>
 
       <div className="explorer-section">
