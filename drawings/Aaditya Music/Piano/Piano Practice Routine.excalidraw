@@ -1889,8 +1889,8 @@
     },
     {
       "type": "rectangle",
-      "version": 1648,
-      "versionNonce": 413972388,
+      "version": 1649,
+      "versionNonce": 1304639140,
       "isDeleted": false,
       "id": "kcGt250xvBLz7ynFdyCbd",
       "fillStyle": "hachure",
@@ -1907,55 +1907,13 @@
       "height": 106.46556864065556,
       "seed": 784652100,
       "groupIds": [],
-      "boundElements": [
-        {
-          "type": "text",
-          "id": "MTfGitCNzTwjc7K2x2ImC"
-        }
-      ],
-      "updated": 1786639053919,
+      "boundElements": [],
+      "updated": 1786639761541,
       "link": null,
       "index": "ay",
       "frameId": null,
       "roundness": null,
       "locked": false
-    },
-    {
-      "id": "MTfGitCNzTwjc7K2x2ImC",
-      "type": "text",
-      "x": 1082.0144643889857,
-      "y": 101.46201249780309,
-      "width": 45.349998474121094,
-      "height": 25,
-      "angle": 0,
-      "strokeColor": "#1e1e1e",
-      "backgroundColor": "transparent",
-      "fillStyle": "solid",
-      "strokeWidth": 2,
-      "strokeStyle": "solid",
-      "roughness": 1,
-      "opacity": 100,
-      "groupIds": [],
-      "frameId": null,
-      "index": "ayV",
-      "roundness": null,
-      "seed": 790784028,
-      "version": 6,
-      "versionNonce": 450143004,
-      "isDeleted": false,
-      "boundElements": [],
-      "updated": 1786639055798,
-      "link": null,
-      "locked": false,
-      "text": "done",
-      "fontSize": 20,
-      "fontFamily": 5,
-      "textAlign": "center",
-      "verticalAlign": "middle",
-      "containerId": "kcGt250xvBLz7ynFdyCbd",
-      "originalText": "done",
-      "autoResize": true,
-      "lineHeight": 1.25
     },
     {
       "type": "rectangle",
@@ -5993,7 +5951,9 @@
       "tab": "github"
     },
     "openDialog": null,
-    "previousSelectedElementIds": {},
+    "previousSelectedElementIds": {
+      "kcGt250xvBLz7ynFdyCbd": true
+    },
     "resizingElement": null,
     "scrolledOutside": false,
     "scrollX": -276.914521328097,
@@ -6020,10 +5980,7 @@
     "frameToHighlight": null,
     "editingFrame": null,
     "elementsToHighlight": null,
-    "toast": {
-      "message": "File saved.",
-      "duration": 1500
-    },
+    "toast": null,
     "viewBackgroundColor": "#fffce8",
     "zenModeEnabled": false,
     "zoom": {
