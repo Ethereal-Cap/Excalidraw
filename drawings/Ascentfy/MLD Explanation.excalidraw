@@ -6,8 +6,8 @@
     {
       "id": "9nCtEVLhFQjZeYPRYs8fJ",
       "type": "text",
-      "x": 835.8830629891156,
-      "y": 249.02843360317593,
+      "x": 834.5774078048157,
+      "y": 254.25105434037494,
       "width": 1093.683349609375,
       "height": 1000,
       "angle": 0,
@@ -23,11 +23,11 @@
       "index": "a0",
       "roundness": null,
       "seed": 1945126077,
-      "version": 1838,
-      "versionNonce": 1309272765,
+      "version": 1939,
+      "versionNonce": 417625555,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1786617498146,
+      "updated": 1786617558074,
       "link": null,
       "locked": false,
       "text": "1. Market like returns with Principle protection with guaranteed returns. \n2. let us assess our options\n2.2 fixed income and equity (bank fd corporate fd, bonds, mf, pms, aif)\n2.3 fixed income \n     bank fd PSu 6-6.5% \n     corportae fd 7-7.5%\n     Bonds 9-10%\n2.4 Equity\n     MF conservative 8-9%, balanced 12-15% aggressive 15-18%. \n\n\nno guaranteed % of alpha over benchmark. Alpha over inflation makes you real money.\nwhy nifty as benchmark\n     PMS 18-20%\n     AIF 25-35%\n3. why this product is a must have in your portfolio eg in 3 years nifty 100 pts mld 140 pts (1.4x) guaranteed  \n   what is MLD? THE security of fixed income instruments + THE POTENTIAL OF\n   MARKET\ndecades old product worldwide and in india since 2008.\n  img 1.1\ndebt instrument\ntenure  liquidity risk lock in\nreturns are linked with nifty\nguaranteed aplha  market risk\nsenior secured debt paper  credit risk\nsame return for all investors\nprinciple protection*\ndiversification \n\nalways compare nifty/mf reutrn on high for all products\nshow them our product return in 2020 crash\nlarge cap low risk with small cap return\nadd nifty cagr return in table\n\n\n\n\nreturn tells you only half the story. return proportionate to risk tell you the full story.\npast product series return in covid as well\n",
@@ -180,7 +180,7 @@
     },
     "preferredSelectionTool": {
       "type": "selection",
-      "initialized": false
+      "initialized": true
     },
     "penMode": false,
     "penDetected": false,
@@ -214,8 +214,8 @@
     "previousSelectedElementIds": {},
     "resizingElement": null,
     "scrolledOutside": false,
-    "scrollX": -102.98125234196209,
-    "scrollY": -57.772123171047724,
+    "scrollX": -192.35835370445776,
+    "scrollY": -89.83677098730175,
     "scrollConstraints": null,
     "selectedElementIds": {},
     "hoveredElementIds": {},
@@ -242,7 +242,7 @@
     "viewBackgroundColor": "#ffffff",
     "zenModeEnabled": false,
     "zoom": {
-      "value": 0.807644
+      "value": 0.765899
     },
     "viewModeEnabled": false,
     "showHyperlinkPopup": false,
