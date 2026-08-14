@@ -10247,8 +10247,8 @@
     "previousSelectedElementIds": {},
     "resizingElement": null,
     "scrolledOutside": false,
-    "scrollX": 0,
-    "scrollY": 0,
+    "scrollX": -253,
+    "scrollY": 227,
     "scrollConstraints": null,
     "selectedElementIds": {},
     "hoveredElementIds": {},
@@ -10281,10 +10281,7 @@
     "showHyperlinkPopup": false,
     "selectedLinearElement": null,
     "snapLines": [],
-    "originSnapOffset": {
-      "x": 0,
-      "y": 0
-    },
+    "originSnapOffset": null,
     "objectsSnapModeEnabled": false,
     "isCropping": false,
     "croppingElementId": null,
