@@ -408,7 +408,7 @@
     },
     "preferredSelectionTool": {
       "type": "selection",
-      "initialized": false
+      "initialized": true
     },
     "penMode": false,
     "penDetected": false,
