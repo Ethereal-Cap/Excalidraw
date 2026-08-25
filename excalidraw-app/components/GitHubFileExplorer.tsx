@@ -93,12 +93,18 @@ export const GitHubFileExplorer = ({
 
   // Sync Excalidraw canvas name with file name input
   useEffect(() => {
-    if (excalidrawAPI && isConnected) {
+    if (!excalidrawAPI || !isConnected) return;
+
+    const checkName = () => {
       const activeName = excalidrawAPI.getAppState().name;
       if (activeName && activeName !== "Untitled" && !activeName.startsWith("canvas-")) {
-        setNewFileName(activeName);
+        setNewFileName((prev) => (prev !== activeName ? activeName : prev));
       }
-    }
+    };
+
+    checkName();
+    const interval = setInterval(checkName, 400);
+    return () => clearInterval(interval);
   }, [excalidrawAPI, isConnected]);
 
   const handleConnect = (e: React.FormEvent) => {
@@ -286,11 +292,14 @@ export const GitHubFileExplorer = ({
     if (item.type === "dir") {
       navigateInto(item.name);
     } else {
-      // Set the hash which will trigger the loading automatically
       const cleanRoot = path.replace(/^\/|\/$/g, "");
       const relativeItemPath = item.path.startsWith(cleanRoot)
         ? item.path.substring(cleanRoot.length).replace(/^\/|\/$/g, "")
         : item.path;
+      
+      const nameWithoutExt = item.name.replace(/\.(excalidraw|json)$/, "");
+      setNewFileName(nameWithoutExt);
+
       window.location.hash = `id=${encodeURIComponent(relativeItemPath)}`;
     }
   };
@@ -316,35 +325,80 @@ export const GitHubFileExplorer = ({
 
     try {
       const cleanRoot = path.replace(/^\/|\/$/g, "");
-      const fullPath = currentPath
+      const nameWithoutExtension = name.replace(/\.(excalidraw|json)$/, "");
+      const targetFileName = `${nameWithoutExtension}.excalidraw`;
+
+      let targetFullPath = currentPath
         ? `${cleanRoot}/${currentPath}/${name}`
         : `${cleanRoot}/${name}`;
-      
-      const nameWithoutExtension = name.replace(/\.(excalidraw|json)$/, "");
-      const relativeSavedPath = currentPath ? `${currentPath}/${nameWithoutExtension}` : nameWithoutExtension;
+      let targetRelativeSavedPath = currentPath ? `${currentPath}/${nameWithoutExtension}` : nameWithoutExtension;
 
-      // Determine existing SHA
       let existingSha = "";
       let isOverwriting = false;
-      
-      const encodedFullPath = encodePathSegments(fullPath);
 
-      if (activeFileKey === relativeSavedPath && currentFileSha) {
-        existingSha = currentFileSha;
-        isOverwriting = true;
-      } else {
-        const checkUrl = `https://api.github.com/repos/${repo}/contents/${encodedFullPath}?ref=${branch}&_t=${Date.now()}`;
-        const checkRes = await fetch(checkUrl, {
-          cache: "no-store",
-          headers: {
-            Authorization: `token ${token}`,
-            Accept: "application/vnd.github.v3+json",
+      // 1. Search the repository tree across all folders (excluding deleted-files)
+      try {
+        const treeRes = await fetch(
+          `https://api.github.com/repos/${repo}/git/trees/${branch}?recursive=1&_t=${Date.now()}`,
+          {
+            cache: "no-store",
+            headers: {
+              Authorization: `token ${token}`,
+              Accept: "application/vnd.github.v3+json",
+            },
           },
-        });
-        if (checkRes.ok) {
-          const fileData = await checkRes.json();
-          existingSha = fileData.sha;
+        );
+        if (treeRes.ok) {
+          const treeData = await treeRes.json();
+          const matches = (treeData.tree || []).filter((item: any) => {
+            if (item.type !== "blob") return false;
+            // Exclude deleted-files folder
+            if (item.path.includes("deleted-files/") || item.path.startsWith("deleted-files")) return false;
+            
+            const fileName = item.path.split("/").pop() || "";
+            return (
+              fileName === targetFileName ||
+              fileName === `${nameWithoutExtension}.json` ||
+              fileName === nameWithoutExtension
+            );
+          });
+
+          if (matches.length > 0) {
+            const match = matches[0];
+            targetFullPath = match.path;
+            existingSha = match.sha;
+            isOverwriting = true;
+
+            const relPath = match.path.startsWith(`${cleanRoot}/`)
+              ? match.path.substring(cleanRoot.length + 1)
+              : match.path;
+            targetRelativeSavedPath = relPath.replace(/\.(excalidraw|json)$/, "");
+          }
+        }
+      } catch (e) {
+        console.warn("Tree search failed, falling back to direct check:", e);
+      }
+
+      // 2. If not found in global tree search, check if active file key matches or check direct path
+      if (!isOverwriting) {
+        if (activeFileKey === targetRelativeSavedPath && currentFileSha) {
+          existingSha = currentFileSha;
           isOverwriting = true;
+        } else {
+          const encodedCheckPath = encodePathSegments(targetFullPath);
+          const checkUrl = `https://api.github.com/repos/${repo}/contents/${encodedCheckPath}?ref=${branch}&_t=${Date.now()}`;
+          const checkRes = await fetch(checkUrl, {
+            cache: "no-store",
+            headers: {
+              Authorization: `token ${token}`,
+              Accept: "application/vnd.github.v3+json",
+            },
+          });
+          if (checkRes.ok) {
+            const fileData = await checkRes.json();
+            existingSha = fileData.sha;
+            isOverwriting = true;
+          }
         }
       }
 
@@ -367,6 +421,8 @@ export const GitHubFileExplorer = ({
 
       const contentString = JSON.stringify(sceneData, null, 2);
       const contentBase64 = btoa(unescape(encodeURIComponent(contentString)));
+
+      const encodedFullPath = encodePathSegments(targetFullPath);
 
       // Commit to GitHub
       const saveRes = await fetch(
@@ -395,8 +451,8 @@ export const GitHubFileExplorer = ({
       const saveData = await saveRes.json();
       const newSha = saveData.content?.sha || "";
       setCurrentFileSha(newSha);
-      setActiveFileKey(relativeSavedPath);
-      globalLastLoadedPath = relativeSavedPath;
+      setActiveFileKey(targetRelativeSavedPath);
+      globalLastLoadedPath = targetRelativeSavedPath;
 
       if (isOverwriting) {
         setSuccessMsg(`Successfully updated "${name}" on GitHub!`);
@@ -412,7 +468,7 @@ export const GitHubFileExplorer = ({
       // Sync hash with newly saved name
       // Set the save guard to prevent handleHashChange from reloading the canvas
       (window as any).excalidrawJustSaved = true;
-      window.location.hash = `id=${encodeURIComponent(relativeSavedPath)}`;
+      window.location.hash = `id=${encodeURIComponent(targetRelativeSavedPath)}`;
 
       fetchFiles();
       setTimeout(() => setSuccessMsg(null), 4000);
@@ -685,7 +741,7 @@ export const GitHubFileExplorer = ({
       </div>
       <div className="explorer-meta-info" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span>Connected to Shared Team Repository</span>
-        <span style={{ opacity: 0.6, fontSize: "0.8rem", fontWeight: "bold" }}>v1.03</span>
+        <span style={{ opacity: 0.6, fontSize: "0.8rem", fontWeight: "bold" }}>v1.04</span>
       </div>
 
       <div className="explorer-section">
