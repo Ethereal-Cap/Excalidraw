@@ -5953,8 +5953,8 @@
     "previousSelectedElementIds": {},
     "resizingElement": null,
     "scrolledOutside": false,
-    "scrollX": 2079.4014980819397,
-    "scrollY": -2423.3406697684522,
+    "scrollX": 2407.5815093056467,
+    "scrollY": -1875.3175781305129,
     "scrollConstraints": null,
     "selectedElementIds": {},
     "hoveredElementIds": {},
@@ -5981,7 +5981,7 @@
     "viewBackgroundColor": "#bab5b5",
     "zenModeEnabled": false,
     "zoom": {
-      "value": 1.435302
+      "value": 0.904017
     },
     "viewModeEnabled": false,
     "showHyperlinkPopup": false,
