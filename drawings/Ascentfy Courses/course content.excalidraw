@@ -396,7 +396,7 @@
       "version": 33,
       "versionNonce": 623899331,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1787985124477,
       "link": null,
       "locked": false,
@@ -433,7 +433,7 @@
       "version": 11,
       "versionNonce": 514881539,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1787985138850,
       "link": null,
       "locked": false,
@@ -507,7 +507,7 @@
       "version": 424,
       "versionNonce": 2006703491,
       "isDeleted": false,
-      "boundElements": null,
+      "boundElements": [],
       "updated": 1787985293686,
       "link": null,
       "locked": false,
@@ -587,9 +587,7 @@
       "tab": "github"
     },
     "openDialog": null,
-    "previousSelectedElementIds": {
-      "y_91WRQH7Vy5U1UETAZC-": true
-    },
+    "previousSelectedElementIds": {},
     "resizingElement": null,
     "scrolledOutside": false,
     "scrollX": 211.33333333333337,
