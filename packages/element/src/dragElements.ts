@@ -20,6 +20,7 @@ import { getCommonBounds } from "./bounds";
 import { getPerfectElementSize } from "./sizeHelpers";
 import { getBoundTextElement } from "./textElement";
 import { getMinTextElementWidth } from "./textMeasurements";
+import { pointFrom, type LocalPoint } from "@excalidraw/math";
 import {
   isArrowElement,
   isElbowArrow,
@@ -30,7 +31,11 @@ import {
 
 import type { Scene } from "./Scene";
 
-import type { ExcalidrawElement, ExcalidrawTextElement } from "./types";
+import type {
+  ExcalidrawElement,
+  ExcalidrawLinearElement,
+  ExcalidrawTextElement,
+} from "./types";
 
 export const dragSelectedElements = (
   pointerDownState: PointerDownState,
@@ -94,6 +99,103 @@ export const dragSelectedElements = (
       return;
     }
     origElements.push(origElement);
+  }
+
+  // Support MindNode subtree movement:
+  // When a MindNode is dragged, collect all its descendant nodes, texts, branches,
+  // and anchored images so the entire tree moves together with the picked node.
+  const draggedMindNodes = selectedElements.filter(
+    (e) => e.customData?.isMindNode,
+  );
+  if (draggedMindNodes.length > 0) {
+    const allNonDeleted = scene.getNonDeletedElements();
+    for (const mn of draggedMindNodes) {
+      const queue: string[] = [mn.id];
+      const descendantNodeIds = new Set<string>();
+
+      while (queue.length > 0) {
+        const currentId = queue.shift()!;
+        for (const el of allNonDeleted) {
+          if (el.customData?.isMindNode && el.customData?.parentId === currentId) {
+            if (!descendantNodeIds.has(el.id)) {
+              descendantNodeIds.add(el.id);
+              queue.push(el.id);
+              elementsToUpdate.add(el);
+
+              // Auto-collapse sub-nodes on drag
+              if (!el.customData?.collapsed || el.opacity !== 0) {
+                scene.mutateElement(el, {
+                  opacity: 0,
+                  customData: {
+                    ...el.customData,
+                    collapsed: true,
+                    hiddenByCollapse: true,
+                  },
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // Collect texts, branches, and anchored images for the dragged node and all its descendants
+      const allSubtreeNodeIds = new Set([mn.id, ...descendantNodeIds]);
+      for (const el of allNonDeleted) {
+        // MindNode text labels
+        if (
+          el.customData?.isMindNodeText &&
+          allSubtreeNodeIds.has(el.customData?.nodeId)
+        ) {
+          elementsToUpdate.add(el);
+          if (descendantNodeIds.has(el.customData?.nodeId) && el.opacity !== 0) {
+            scene.mutateElement(el, {
+              opacity: 0,
+              customData: {
+                ...el.customData,
+                hiddenByCollapse: true,
+              },
+            });
+          }
+        }
+        // Subtree branches (branches between nodes within the dragged subtree)
+        if (
+          el.customData?.isMindNodeBranch &&
+          allSubtreeNodeIds.has(el.customData?.parentId) &&
+          allSubtreeNodeIds.has(el.customData?.childId)
+        ) {
+          elementsToUpdate.add(el);
+          if (el.opacity !== 0) {
+            scene.mutateElement(el, {
+              opacity: 0,
+              customData: {
+                ...el.customData,
+                hiddenByCollapse: true,
+              },
+            });
+          }
+        }
+        // Images anchored to nodes in this subtree
+        if (
+          el.type === "image" &&
+          allSubtreeNodeIds.has(el.customData?.anchoredMindNodeId)
+        ) {
+          elementsToUpdate.add(el);
+          // If the dragged node itself is collapsed or if the image is anchored to a descendant
+          if (
+            (mn.customData?.collapsed || descendantNodeIds.has(el.customData?.anchoredMindNodeId)) &&
+            el.opacity !== 0
+          ) {
+            scene.mutateElement(el, {
+              opacity: 0,
+              customData: {
+                ...el.customData,
+                hiddenByCollapse: true,
+              },
+            });
+          }
+        }
+      }
+    }
   }
 
   const adjustedOffset = calculateOffset(
@@ -168,6 +270,55 @@ export const dragSelectedElements = (
       }
     }
   });
+
+  // Re-sync incoming branch connector curve if dragging a child MindNode whose parent is stationary
+  if (draggedMindNodes.length > 0) {
+    const allNonDeleted = scene.getNonDeletedElements();
+    for (const mn of draggedMindNodes) {
+      if (mn.customData?.parentId && !elementsToUpdateIds.has(mn.customData?.parentId)) {
+        const parent = allNonDeleted.find((e) => e.id === mn.customData?.parentId);
+        const incomingBranch = allNonDeleted.find(
+          (e) =>
+            e.customData?.isMindNodeBranch &&
+            e.customData?.parentId === mn.customData?.parentId &&
+            e.customData?.childId === mn.id,
+        );
+        if (parent && incomingBranch) {
+          const startX = parent.x + parent.width;
+          const startY = parent.y + parent.height / 2;
+          const endX = mn.x;
+          const endY = mn.y + mn.height / 2;
+          const dx = endX - startX;
+          const dy = endY - startY;
+
+          const points: LocalPoint[] = [pointFrom<LocalPoint>(0, 0)];
+          const steps = 12;
+          for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            const cx1 = dx * 0.45;
+            const cy1 = 0;
+            const cx2 = dx * 0.55;
+            const cy2 = dy;
+            const u = 1 - t;
+            const tt = t * t;
+            const uu = u * u;
+            const ttt = tt * t;
+            const px = 3 * uu * t * cx1 + 3 * u * tt * cx2 + ttt * dx;
+            const py = 3 * uu * t * cy1 + 3 * u * tt * cy2 + ttt * dy;
+            points.push(pointFrom<LocalPoint>(Math.round(px), Math.round(py)));
+          }
+
+          scene.mutateElement(incomingBranch as ExcalidrawLinearElement, {
+            x: startX,
+            y: startY,
+            width: Math.abs(dx),
+            height: Math.abs(dy),
+            points,
+          });
+        }
+      }
+    }
+  }
 };
 
 const calculateOffset = (

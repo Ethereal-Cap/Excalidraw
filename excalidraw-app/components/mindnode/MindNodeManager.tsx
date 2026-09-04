@@ -247,6 +247,8 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         );
         const hideSet = new Set([...nodeIds, ...textIds, ...branchIds, ...imageIds]);
 
+        const descendantNodeIdSet = new Set(nodeIds);
+
         const updatedElements = currentElements.map((el) => {
           if (el.id === node.id) {
             return {
@@ -258,12 +260,14 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             };
           }
           if (hideSet.has(el.id)) {
+            const isDescendantNode = descendantNodeIdSet.has(el.id);
             return {
               ...el,
               opacity: 0,
               customData: {
                 ...el.customData,
                 hiddenByCollapse: true,
+                ...(isDescendantNode ? { collapsed: true } : {}),
               },
             };
           }

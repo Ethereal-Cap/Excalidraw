@@ -1,4 +1,4 @@
-﻿/**
+/**
  * MindNode Theme & Styling System for Excalidraw
  * Provides the pastel palette, node types, and branch curve colors
  * inspired by MindNode.
@@ -19,7 +19,7 @@ export const MINDNODE_THEMES: MindNodeTheme[] = [
     id: "mint",
     name: "Mint Fresh",
     bg: "#bbf7d0", // soft pastel mint green
-    stroke: "#4ade80", // vibrant mint green border
+    stroke: "#bbf7d0", // matching pastel mint green border
     text: "#14532d", // deep forest green text
     badgeBg: "#86efac",
     badgeText: "#14532d",
@@ -28,7 +28,7 @@ export const MINDNODE_THEMES: MindNodeTheme[] = [
     id: "cyan",
     name: "Ocean Cyan",
     bg: "#a5f3fc", // pastel cyan/teal
-    stroke: "#38bdf8", // lively cyan border
+    stroke: "#a5f3fc", // matching pastel cyan border
     text: "#0c4a6e", // deep navy text
     badgeBg: "#7dd3fc",
     badgeText: "#0c4a6e",
@@ -37,7 +37,7 @@ export const MINDNODE_THEMES: MindNodeTheme[] = [
     id: "rose",
     name: "Soft Rose",
     bg: "#fbcfe8", // soft pink
-    stroke: "#f472b6", // warm rose border
+    stroke: "#fbcfe8", // matching soft rose border
     text: "#831843", // deep wine text
     badgeBg: "#f9a8d4",
     badgeText: "#831843",
@@ -46,7 +46,7 @@ export const MINDNODE_THEMES: MindNodeTheme[] = [
     id: "lavender",
     name: "Lavender Mist",
     bg: "#ddd6fe", // soft lavender violet
-    stroke: "#a78bfa", // violet border
+    stroke: "#ddd6fe", // matching soft lavender border
     text: "#4c1d95", // deep violet text
     badgeBg: "#c4b5fd",
     badgeText: "#4c1d95",
@@ -55,7 +55,7 @@ export const MINDNODE_THEMES: MindNodeTheme[] = [
     id: "amber",
     name: "Golden Sunrise",
     bg: "#fde68a", // soft warm amber
-    stroke: "#fbbf24", // warm gold border
+    stroke: "#fde68a", // matching warm gold border
     text: "#78350f", // deep amber text
     badgeBg: "#fcd34d",
     badgeText: "#78350f",
@@ -64,7 +64,7 @@ export const MINDNODE_THEMES: MindNodeTheme[] = [
     id: "coral",
     name: "Coral Peach",
     bg: "#fed7aa", // soft peach
-    stroke: "#fb923c", // coral orange border
+    stroke: "#fed7aa", // matching coral peach border
     text: "#7c2d12", // deep rust text
     badgeBg: "#fdba74",
     badgeText: "#7c2d12",
