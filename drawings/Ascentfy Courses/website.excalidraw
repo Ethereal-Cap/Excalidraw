@@ -6539,8 +6539,8 @@
     },
     "resizingElement": null,
     "scrolledOutside": false,
-    "scrollX": -2156.833333333333,
-    "scrollY": 1147.5,
+    "scrollX": -1399.333333333333,
+    "scrollY": 1358.3333333333335,
     "scrollConstraints": null,
     "selectedElementIds": {},
     "hoveredElementIds": {},
@@ -6567,7 +6567,7 @@
     "viewBackgroundColor": "#1e1e1e",
     "zenModeEnabled": false,
     "zoom": {
-      "value": 0.4
+      "value": 0.3
     },
     "viewModeEnabled": false,
     "showHyperlinkPopup": false,
