@@ -1,4 +1,4 @@
-﻿import { pointFrom, type LocalPoint } from "@excalidraw/math";
+import { pointFrom, type LocalPoint } from "@excalidraw/math";
 import type {
   ExcalidrawElement,
   NonDeletedExcalidrawElement,
@@ -16,6 +16,8 @@ export interface MindNodeData {
   badgeId?: string | null;
   themeId?: string;
   order?: number;
+  collapsed?: boolean;
+  attachedImages?: string[]; // fileIds or elementIds of attached images
 }
 
 /**
@@ -72,7 +74,6 @@ export const createMindNodeElement = (
   const theme = MINDNODE_THEMES.find((t) => t.id === themeId) || MINDNODE_THEMES[0];
   const fontSize = nodeType === "root" ? 18 : 15;
   
-  // Text element width estimation
   const approxTextWidth = Math.max(label.length * (fontSize * 0.62), 120);
   const width = Math.max(approxTextWidth + MINDNODE_CONSTANTS.NODE_PADDING_X * 2, MINDNODE_CONSTANTS.MIN_NODE_WIDTH);
   const height = nodeType === "root" ? 48 : 42;
@@ -97,6 +98,7 @@ export const createMindNodeElement = (
       themeId: theme.id,
       childrenIds: [],
       order,
+      collapsed: false,
     },
   });
 
@@ -206,3 +208,159 @@ export const autoLayoutMindNodeSubtree = (
 
   return updates;
 };
+
+/**
+ * Recursively retrieves all descendant node IDs (including text, branches, and anchored images)
+ */
+export const getAllDescendantIds = (
+  rootNodeId: string,
+  elements: readonly ExcalidrawElement[],
+): {
+  nodeIds: string[];
+  textIds: string[];
+  branchIds: string[];
+  imageIds: string[];
+} => {
+  const nodeIds: string[] = [];
+  const textIds: string[] = [];
+  const branchIds: string[] = [];
+  const imageIds: string[] = [];
+
+  const queue: string[] = [rootNodeId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    for (const el of elements) {
+      if (el.isDeleted) continue;
+
+      // Check for child mind nodes
+      if (el.customData?.isMindNode && el.customData?.parentId === currentId) {
+        nodeIds.push(el.id);
+        queue.push(el.id);
+      }
+      // Check for branches originating from this parent
+      if (el.customData?.isMindNodeBranch && el.customData?.parentId === currentId) {
+        branchIds.push(el.id);
+      }
+      // Check for images anchored to current node
+      if (el.type === "image" && el.customData?.anchoredMindNodeId === currentId) {
+        imageIds.push(el.id);
+      }
+    }
+  }
+
+  // Find all text elements for the collected nodes
+  for (const el of elements) {
+    if (
+      el.customData?.isMindNodeText &&
+      nodeIds.includes(el.customData?.nodeId)
+    ) {
+      textIds.push(el.id);
+    }
+    // Also root's anchored images
+    if (el.type === "image" && el.customData?.anchoredMindNodeId === rootNodeId) {
+      if (!imageIds.includes(el.id)) {
+        imageIds.push(el.id);
+      }
+    }
+  }
+
+  return { nodeIds, textIds, branchIds, imageIds };
+};
+
+/**
+ * Returns immediate children nodes of a given parent
+ */
+export const getImmediateChildren = (
+  parentId: string,
+  elements: readonly ExcalidrawElement[],
+): ExcalidrawElement[] => {
+  return elements.filter(
+    (el) =>
+      !el.isDeleted &&
+      el.customData?.isMindNode &&
+      el.customData?.parentId === parentId,
+  );
+};
+
+/**
+ * Returns descendants organized level by level (breadth-first)
+ * Each level contains { nodes: ExcalidrawElement[], branches: ExcalidrawElement[], images: ExcalidrawElement[] }
+ */
+export const getDescendantHierarchy = (
+  rootNodeId: string,
+  elements: readonly ExcalidrawElement[],
+): Array<{
+  nodes: ExcalidrawElement[];
+  texts: ExcalidrawElement[];
+  branches: ExcalidrawElement[];
+  images: ExcalidrawElement[];
+}> => {
+  const levels: Array<{
+    nodes: ExcalidrawElement[];
+    texts: ExcalidrawElement[];
+    branches: ExcalidrawElement[];
+    images: ExcalidrawElement[];
+  }> = [];
+
+  let currentParentIds = [rootNodeId];
+
+  while (currentParentIds.length > 0) {
+    const nextNodes: ExcalidrawElement[] = [];
+    const nextBranches: ExcalidrawElement[] = [];
+    const nextImages: ExcalidrawElement[] = [];
+
+    for (const parentId of currentParentIds) {
+      for (const el of elements) {
+        if (el.isDeleted) continue;
+        if (el.customData?.isMindNode && el.customData?.parentId === parentId) {
+          nextNodes.push(el);
+        }
+        if (el.customData?.isMindNodeBranch && el.customData?.parentId === parentId) {
+          nextBranches.push(el);
+        }
+        if (el.type === "image" && el.customData?.anchoredMindNodeId === parentId) {
+          if (!nextImages.some((img) => img.id === el.id)) {
+            nextImages.push(el);
+          }
+        }
+      }
+    }
+
+    if (nextNodes.length === 0 && nextBranches.length === 0 && nextImages.length === 0) {
+      break;
+    }
+
+    // Collect text elements for nextNodes
+    const nextNodeIds = nextNodes.map((n) => n.id);
+    const nextTexts = elements.filter(
+      (el) =>
+        !el.isDeleted &&
+        el.customData?.isMindNodeText &&
+        nextNodeIds.includes(el.customData?.nodeId),
+    );
+
+    // Also collect any images attached directly to the nextNodes themselves
+    for (const n of nextNodes) {
+      for (const el of elements) {
+        if (el.type === "image" && el.customData?.anchoredMindNodeId === n.id) {
+          if (!nextImages.some((img) => img.id === el.id)) {
+            nextImages.push(el);
+          }
+        }
+      }
+    }
+
+    levels.push({
+      nodes: nextNodes,
+      texts: nextTexts,
+      branches: nextBranches,
+      images: nextImages,
+    });
+
+    currentParentIds = nextNodes.map((n) => n.id);
+  }
+
+  return levels;
+};
+
