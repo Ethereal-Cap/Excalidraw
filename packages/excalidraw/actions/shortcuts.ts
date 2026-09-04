@@ -107,7 +107,7 @@ const shortcutMap: Record<ShortcutName, string[]> = {
   zoomToFitSelection: [getShortcutKey("Shift+3")],
   zoomToFit: [getShortcutKey("Shift+1")],
   zoomToFitSelectionInViewport: [getShortcutKey("Shift+2")],
-  saveFileToDisk: [getShortcutKey("CtrlOrCmd+S")],
+  saveFileToDisk: [getShortcutKey("CtrlOrCmd+Shift+S")],
   saveToActiveFile: [getShortcutKey("CtrlOrCmd+S")],
   toggleShortcuts: [getShortcutKey("?")],
   searchMenu: [getShortcutKey("CtrlOrCmd+F")],

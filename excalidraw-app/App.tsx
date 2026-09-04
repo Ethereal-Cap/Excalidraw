@@ -35,6 +35,7 @@ import {
 import polyfill from "@excalidraw/excalidraw/polyfill";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
+import { saveAsJSON } from "@excalidraw/excalidraw/data/json";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
@@ -556,8 +557,60 @@ const ExcalidrawWrapper = () => {
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, [excalidrawAPI]);
 
+  // Ctrl+S / Ctrl+Shift+S keyboard shortcuts
+  useEffect(() => {
+    if (!excalidrawAPI) return;
+
+    const handleSaveShortcut = async (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const saveToDisk = async () => {
+          try {
+            const elements = excalidrawAPI.getSceneElements();
+            const appState = excalidrawAPI.getAppState();
+            const files = excalidrawAPI.getFiles();
+            const name = excalidrawAPI.getName();
+            await saveAsJSON({
+              data: Promise.resolve({ elements, appState, files }),
+              filename: name,
+              fileHandle: null,
+            });
+            excalidrawAPI.setToast({
+              message: "File saved to disk",
+              duration: 2000,
+            });
+          } catch (err: any) {
+            if (err?.name !== "AbortError") {
+              console.error("Ctrl+S disk save failed:", err);
+            }
+          }
+        };
+
+        if (e.shiftKey) {
+          // Ctrl+Shift+S: always save to PC disk
+          await saveToDisk();
+        } else {
+          // Ctrl+S: save to GitHub if authenticated, else save to PC disk
+          const isGhAuth =
+            localStorage.getItem("excalidraw-gh-auth") === "true";
+          if (isGhAuth && typeof (window as any).__saveToGitHub === "function") {
+            (window as any).__saveToGitHub();
+          } else {
+            await saveToDisk();
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleSaveShortcut, true);
+    return () => window.removeEventListener("keydown", handleSaveShortcut, true);
+  }, [excalidrawAPI]);
+
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
+
   const [isCollaborating] = useAtomWithInitialValue(isCollaboratingAtom, () => {
     return isCollaborationLink(window.location.href);
   });

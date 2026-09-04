@@ -68,6 +68,15 @@ export const AppMainMenu: React.FC<{
   return (
     <MainMenu>
       <MainMenu.Item
+        icon={plusIcon}
+        onSelect={() => {
+          const uniqueId = "canvas-" + Math.random().toString(36).substring(2, 9);
+          window.location.hash = `id=${uniqueId}`;
+        }}
+      >
+        New Canvas
+      </MainMenu.Item>
+      <MainMenu.Item
         icon={brainIcon}
         onSelect={() => {
           if (!props.excalidrawAPI) return;
@@ -93,15 +102,6 @@ export const AppMainMenu: React.FC<{
         }}
       >
         Create Mind Map
-      </MainMenu.Item>
-      <MainMenu.Item
-        icon={plusIcon}
-        onSelect={() => {
-          const uniqueId = "canvas-" + Math.random().toString(36).substring(2, 9);
-          window.location.hash = `id=${uniqueId}`;
-        }}
-      >
-        New Canvas
       </MainMenu.Item>
       <MainMenu.DefaultItems.LoadScene />
       <MainMenu.DefaultItems.SaveToActiveFile />
