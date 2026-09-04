@@ -41,6 +41,22 @@ const plusIcon = (
   </svg>
 );
 
+const brainIcon = (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    stroke="currentColor"
+    strokeWidth="2"
+    fill="none"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04Z" />
+    <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04Z" />
+  </svg>
+);
+
 export const AppMainMenu: React.FC<{
   onCollabDialogOpen: () => any;
   isCollaborating: boolean;
@@ -51,6 +67,33 @@ export const AppMainMenu: React.FC<{
 }> = React.memo((props) => {
   return (
     <MainMenu>
+      <MainMenu.Item
+        icon={brainIcon}
+        onSelect={() => {
+          if (!props.excalidrawAPI) return;
+          const api = props.excalidrawAPI;
+          const appState = api.getAppState();
+          const zoom = appState.zoom.value;
+          const centerX = -appState.scrollX + appState.width / (2 * zoom);
+          const centerY = -appState.scrollY + appState.height / (2 * zoom);
+
+          const { rect, text } = (window as any).__createMindNode
+            ? (window as any).__createMindNode(centerX - 80, centerY - 24, "Central Topic")
+            : { rect: null, text: null };
+
+          if (rect && text) {
+            const elements = api.getSceneElements();
+            api.updateScene({
+              elements: [...elements, rect, text],
+              appState: {
+                selectedElementIds: { [rect.id]: true },
+              },
+            });
+          }
+        }}
+      >
+        Create Mind Map
+      </MainMenu.Item>
       <MainMenu.Item
         icon={plusIcon}
         onSelect={() => {

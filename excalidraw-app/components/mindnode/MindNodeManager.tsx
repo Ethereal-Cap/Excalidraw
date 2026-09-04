@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement, NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 import {
@@ -43,6 +43,12 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       unsubscribe();
     };
   }, [excalidrawAPI]);
+
+  useEffect(() => {
+    (window as any).__createMindNode = (x: number, y: number, label: string) => {
+      return createMindNodeElement(x, y, label, activeThemeId, "root", null);
+    };
+  }, [activeThemeId]);
 
   // Add Root MindNode to canvas
   const handleAddRootNode = useCallback(
@@ -258,7 +264,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
   return (
     <>
       {/* MindNode Floating Control Pill on Toolbar */}
-      <div className="mindnode-toolbar-badge" title="MindNode Mind Mapping">
+      <div className="mindnode-top-toolbar" title="MindNode Mind Mapping">
         <button
           className={`mindnode-btn-mode ${isMindNodeModeActive ? "active" : ""}`}
           onClick={() => {
