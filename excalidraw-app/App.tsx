@@ -147,6 +147,7 @@ import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 import "./index.scss";
 
 import { AppSidebar } from "./components/AppSidebar";
+import { MindNodeManager } from "./components/mindnode/MindNodeManager";
 
 import type { CollabAPI } from "./collab/Collab";
 
@@ -1447,6 +1448,7 @@ const ExcalidrawWrapper = () => {
             ref={debugCanvasRef}
           />
         )}
+        <MindNodeManager excalidrawAPI={excalidrawAPI} />
       </Excalidraw>
     </div>
   );
