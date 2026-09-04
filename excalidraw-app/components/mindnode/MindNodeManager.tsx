@@ -174,7 +174,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
           if (container) {
             return {
               ...el,
-              x: container.x + 10,
+              x: container.x + (container.width - el.width) / 2,
               y: container.y + (container.height - el.height) / 2,
             };
           }
@@ -277,8 +277,8 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             : prev,
         );
       } else {
-        // --- EXPAND: Animate nodes one by one / level by level ---
-        // 1. Mark root node uncollapsed first
+        // --- EXPAND: Animate immediate child level only (hierarchical / incremental unfolding) ---
+        // 1. Mark target node uncollapsed
         let workingElements = currentElements.map((el) => {
           if (el.id === node.id) {
             return {
@@ -292,6 +292,67 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
           return el;
         });
 
+        // 2. Identify immediate children nodes of this node
+        const immediateChildNodes = workingElements.filter(
+          (el) =>
+            !el.isDeleted &&
+            el.customData?.isMindNode &&
+            el.customData?.parentId === node.id,
+        );
+        const immediateChildNodeIds = new Set(immediateChildNodes.map((c) => c.id));
+
+        // 3. Find immediate branches connecting this parent to its immediate children
+        const immediateBranches = workingElements.filter(
+          (el) =>
+            !el.isDeleted &&
+            el.customData?.isMindNodeBranch &&
+            el.customData?.parentId === node.id,
+        );
+
+        // 4. Find bound text elements for immediate children
+        const immediateTexts = workingElements.filter(
+          (el) =>
+            !el.isDeleted &&
+            el.customData?.isMindNodeText &&
+            immediateChildNodeIds.has(el.customData?.nodeId),
+        );
+
+        // 5. Find images anchored directly to this parent or directly to immediate children
+        const immediateImages = workingElements.filter(
+          (el) =>
+            !el.isDeleted &&
+            el.type === "image" &&
+            (el.customData?.anchoredMindNodeId === node.id ||
+              immediateChildNodeIds.has(el.customData?.anchoredMindNodeId)),
+        );
+
+        // Sort immediate children by visual order or y-position for smooth top-to-bottom sequential appearance
+        immediateChildNodes.sort(
+          (a, b) => (a.customData?.order ?? a.y) - (b.customData?.order ?? b.y),
+        );
+
+        // Ensure any immediate child that has descendants of its own preserves collapsed=true state
+        workingElements = workingElements.map((el) => {
+          if (immediateChildNodeIds.has(el.id)) {
+            const hasGrandchildren = workingElements.some(
+              (candidate) =>
+                !candidate.isDeleted &&
+                ((candidate.customData?.isMindNode && candidate.customData?.parentId === el.id) ||
+                  (candidate.type === "image" && candidate.customData?.anchoredMindNodeId === el.id)),
+            );
+            if (hasGrandchildren && el.customData?.collapsed === undefined) {
+              return {
+                ...el,
+                customData: {
+                  ...el.customData,
+                  collapsed: true,
+                },
+              };
+            }
+          }
+          return el;
+        });
+
         excalidrawAPI.updateScene({ elements: workingElements });
         setSelectedMindNode((prev) =>
           prev && prev.id === node.id
@@ -299,18 +360,38 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             : prev,
         );
 
-        // 2. Query descendant hierarchy level by level
-        const levels = getDescendantHierarchy(node.id, workingElements);
-
-        // 3. Reveal each level sequentially with a staggered interval
-        levels.forEach((level, index) => {
+        // Sequential one-by-one reveal of immediate child nodes and their branches/texts/images
+        immediateChildNodes.forEach((childNode, index) => {
           const timer = setTimeout(() => {
             if (!excalidrawAPI) return;
+
+            const childBranchIds = new Set(
+              immediateBranches
+                .filter((b) => b.customData?.childId === childNode.id)
+                .map((b) => b.id),
+            );
+            const childTextIds = new Set(
+              immediateTexts
+                .filter((t) => t.customData?.nodeId === childNode.id)
+                .map((t) => t.id),
+            );
+            const childImageIds = new Set(
+              immediateImages
+                .filter((img) => img.customData?.anchoredMindNodeId === childNode.id)
+                .map((img) => img.id),
+            );
+
+            // Also on the very first child step, reveal any images anchored directly to the parent node
+            const parentImageIds = index === 0
+              ? new Set(immediateImages.filter((img) => img.customData?.anchoredMindNodeId === node.id).map((img) => img.id))
+              : new Set<string>();
+
             const revealSet = new Set([
-              ...level.nodes.map((n) => n.id),
-              ...level.texts.map((t) => t.id),
-              ...level.branches.map((b) => b.id),
-              ...level.images.map((img) => img.id),
+              childNode.id,
+              ...childBranchIds,
+              ...childTextIds,
+              ...childImageIds,
+              ...parentImageIds,
             ]);
 
             const sceneElements = excalidrawAPI.getSceneElements();
@@ -329,10 +410,30 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             });
 
             excalidrawAPI.updateScene({ elements: nextElements });
-          }, (index + 1) * 120);
+          }, (index + 1) * 80);
 
           expandTimersRef.current.push(timer);
         });
+
+        // If node has anchored images but no child nodes, reveal its images directly
+        if (immediateChildNodes.length === 0 && immediateImages.length > 0) {
+          const revealSet = new Set(immediateImages.map((img) => img.id));
+          const sceneElements = excalidrawAPI.getSceneElements();
+          const nextElements = sceneElements.map((el) => {
+            if (revealSet.has(el.id)) {
+              return {
+                ...el,
+                opacity: 100,
+                customData: {
+                  ...el.customData,
+                  hiddenByCollapse: false,
+                },
+              };
+            }
+            return el;
+          });
+          excalidrawAPI.updateScene({ elements: nextElements });
+        }
       }
     },
     [excalidrawAPI],

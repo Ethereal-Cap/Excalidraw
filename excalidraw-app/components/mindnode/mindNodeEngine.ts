@@ -102,16 +102,18 @@ export const createMindNodeElement = (
     },
   });
 
+  // Center coordinates for newTextElement (which subtracts metrics.width * 0.5 and metrics.height * 0.5)
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+
   const text = newTextElement({
     text: label,
     fontSize,
     fontFamily: 2, // clean sans-serif
     textAlign: "center",
     verticalAlign: "middle",
-    x: x + 10,
-    y: y + (height - fontSize * 1.25) / 2,
-    width: width - 20,
-    height: fontSize * 1.25,
+    x: centerX,
+    y: centerY,
     strokeColor: theme.text,
     containerId: rect.id,
     customData: {
