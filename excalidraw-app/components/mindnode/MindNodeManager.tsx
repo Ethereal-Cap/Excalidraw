@@ -222,9 +222,9 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     [excalidrawAPI, activeThemeId],
   );
 
-  // Toggle Collapse / Expand with One-by-One Sequential Animation
+  // Toggle Collapse / Expand (mode: "incremental" for 1-level unfold, "all" for all levels at once)
   const handleToggleCollapse = useCallback(
-    (node: ExcalidrawElement) => {
+    (node: ExcalidrawElement, mode: "incremental" | "all" = "incremental") => {
       if (!excalidrawAPI) return;
 
       // Clear any in-flight expand timers
@@ -241,7 +241,6 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
           currentElements,
         );
         const hideSet = new Set([...nodeIds, ...textIds, ...branchIds, ...imageIds]);
-
         const descendantNodeIdSet = new Set(nodeIds);
 
         const updatedElements = currentElements.map((el) => {
@@ -276,123 +275,182 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             : prev,
         );
       } else {
-        // --- EXPAND: Animate immediate child level only (hierarchical / incremental unfolding) ---
-        // 1. Mark target node uncollapsed
-        let workingElements = currentElements.map((el) => {
-          if (el.id === node.id) {
-            return {
-              ...el,
-              customData: {
-                ...el.customData,
-                collapsed: false,
-              },
-            };
-          }
-          return el;
-        });
+        // --- EXPAND ---
+        if (mode === "all") {
+          // --- FULL EXPAND (ALL LEVELS AT ONCE) ---
+          const { nodeIds, textIds, branchIds, imageIds } = getAllDescendantIds(
+            node.id,
+            currentElements,
+          );
+          const revealSet = new Set([...nodeIds, ...textIds, ...branchIds, ...imageIds]);
+          const descendantNodeIdSet = new Set(nodeIds);
 
-        // 2. Identify immediate children nodes of this node
-        const immediateChildNodes = workingElements.filter(
-          (el) =>
-            !el.isDeleted &&
-            el.customData?.isMindNode &&
-            el.customData?.parentId === node.id,
-        );
-        const immediateChildNodeIds = new Set(immediateChildNodes.map((c) => c.id));
-
-        // 3. Find immediate branches connecting this parent to its immediate children
-        const immediateBranches = workingElements.filter(
-          (el) =>
-            !el.isDeleted &&
-            el.customData?.isMindNodeBranch &&
-            el.customData?.parentId === node.id,
-        );
-
-        // 4. Find bound text elements for immediate children
-        const immediateTexts = workingElements.filter(
-          (el) =>
-            !el.isDeleted &&
-            el.customData?.isMindNodeText &&
-            immediateChildNodeIds.has(el.customData?.nodeId),
-        );
-
-        // 5. Find images anchored directly to this parent or directly to immediate children
-        const immediateImages = workingElements.filter(
-          (el) =>
-            !el.isDeleted &&
-            el.type === "image" &&
-            (el.customData?.anchoredMindNodeId === node.id ||
-              immediateChildNodeIds.has(el.customData?.anchoredMindNodeId)),
-        );
-
-        // Sort immediate children by visual order or y-position for smooth top-to-bottom sequential appearance
-        immediateChildNodes.sort(
-          (a, b) => (a.customData?.order ?? a.y) - (b.customData?.order ?? b.y),
-        );
-
-        // Ensure any immediate child that has descendants of its own preserves collapsed=true state
-        workingElements = workingElements.map((el) => {
-          if (immediateChildNodeIds.has(el.id)) {
-            const hasGrandchildren = workingElements.some(
-              (candidate) =>
-                !candidate.isDeleted &&
-                ((candidate.customData?.isMindNode && candidate.customData?.parentId === el.id) ||
-                  (candidate.type === "image" && candidate.customData?.anchoredMindNodeId === el.id)),
-            );
-            if (hasGrandchildren && el.customData?.collapsed === undefined) {
+          const updatedElements = currentElements.map((el) => {
+            if (el.id === node.id) {
               return {
                 ...el,
                 customData: {
                   ...el.customData,
-                  collapsed: true,
+                  collapsed: false,
                 },
               };
             }
-          }
-          return el;
-        });
+            if (revealSet.has(el.id)) {
+              const isDescendantNode = descendantNodeIdSet.has(el.id);
+              return {
+                ...el,
+                opacity: 100,
+                customData: {
+                  ...el.customData,
+                  hiddenByCollapse: false,
+                  ...(isDescendantNode ? { collapsed: false } : {}),
+                },
+              };
+            }
+            return el;
+          });
 
-        excalidrawAPI.updateScene({ elements: workingElements });
-        setSelectedMindNode((prev) =>
-          prev && prev.id === node.id
-            ? { ...prev, customData: { ...prev.customData, collapsed: false } }
-            : prev,
-        );
+          excalidrawAPI.updateScene({ elements: updatedElements });
+          setSelectedMindNode((prev) =>
+            prev && prev.id === node.id
+              ? { ...prev, customData: { ...prev.customData, collapsed: false } }
+              : prev,
+          );
+        } else {
+          // --- INCREMENTAL EXPAND (IMMEDIATE CHILD LEVEL ONLY) ---
+          let workingElements = currentElements.map((el) => {
+            if (el.id === node.id) {
+              return {
+                ...el,
+                customData: {
+                  ...el.customData,
+                  collapsed: false,
+                },
+              };
+            }
+            return el;
+          });
 
-        // Sequential one-by-one reveal of immediate child nodes and their branches/texts/images
-        immediateChildNodes.forEach((childNode, index) => {
-          const timer = setTimeout(() => {
-            if (!excalidrawAPI) return;
+          // Identify immediate children nodes
+          const immediateChildNodes = workingElements.filter(
+            (el) =>
+              !el.isDeleted &&
+              el.customData?.isMindNode &&
+              el.customData?.parentId === node.id,
+          );
+          const immediateChildNodeIds = new Set(immediateChildNodes.map((c) => c.id));
 
-            const childBranchIds = new Set(
-              immediateBranches
-                .filter((b) => b.customData?.childId === childNode.id)
-                .map((b) => b.id),
-            );
-            const childTextIds = new Set(
-              immediateTexts
-                .filter((t) => t.customData?.nodeId === childNode.id)
-                .map((t) => t.id),
-            );
-            const childImageIds = new Set(
-              immediateImages
-                .filter((img) => img.customData?.anchoredMindNodeId === childNode.id)
-                .map((img) => img.id),
-            );
+          const immediateBranches = workingElements.filter(
+            (el) =>
+              !el.isDeleted &&
+              el.customData?.isMindNodeBranch &&
+              el.customData?.parentId === node.id,
+          );
 
-            // Also on the very first child step, reveal any images anchored directly to the parent node
-            const parentImageIds = index === 0
-              ? new Set(immediateImages.filter((img) => img.customData?.anchoredMindNodeId === node.id).map((img) => img.id))
-              : new Set<string>();
+          const immediateTexts = workingElements.filter(
+            (el) =>
+              !el.isDeleted &&
+              el.customData?.isMindNodeText &&
+              immediateChildNodeIds.has(el.customData?.nodeId),
+          );
 
-            const revealSet = new Set([
-              childNode.id,
-              ...childBranchIds,
-              ...childTextIds,
-              ...childImageIds,
-              ...parentImageIds,
-            ]);
+          const immediateImages = workingElements.filter(
+            (el) =>
+              !el.isDeleted &&
+              el.type === "image" &&
+              (el.customData?.anchoredMindNodeId === node.id ||
+                immediateChildNodeIds.has(el.customData?.anchoredMindNodeId)),
+          );
 
+          immediateChildNodes.sort(
+            (a, b) => (a.customData?.order ?? a.y) - (b.customData?.order ?? b.y),
+          );
+
+          // Preserve collapsed=true on immediate children that have their own descendants
+          workingElements = workingElements.map((el) => {
+            if (immediateChildNodeIds.has(el.id)) {
+              const hasGrandchildren = workingElements.some(
+                (candidate) =>
+                  !candidate.isDeleted &&
+                  ((candidate.customData?.isMindNode && candidate.customData?.parentId === el.id) ||
+                    (candidate.type === "image" && candidate.customData?.anchoredMindNodeId === el.id)),
+              );
+              if (hasGrandchildren && el.customData?.collapsed === undefined) {
+                return {
+                  ...el,
+                  customData: {
+                    ...el.customData,
+                    collapsed: true,
+                  },
+                };
+              }
+            }
+            return el;
+          });
+
+          excalidrawAPI.updateScene({ elements: workingElements });
+          setSelectedMindNode((prev) =>
+            prev && prev.id === node.id
+              ? { ...prev, customData: { ...prev.customData, collapsed: false } }
+              : prev,
+          );
+
+          // Sequential one-by-one reveal
+          immediateChildNodes.forEach((childNode, index) => {
+            const timer = setTimeout(() => {
+              if (!excalidrawAPI) return;
+
+              const childBranchIds = new Set(
+                immediateBranches
+                  .filter((b) => b.customData?.childId === childNode.id)
+                  .map((b) => b.id),
+              );
+              const childTextIds = new Set(
+                immediateTexts
+                  .filter((t) => t.customData?.nodeId === childNode.id)
+                  .map((t) => t.id),
+              );
+              const childImageIds = new Set(
+                immediateImages
+                  .filter((img) => img.customData?.anchoredMindNodeId === childNode.id)
+                  .map((img) => img.id),
+              );
+
+              const parentImageIds = index === 0
+                ? new Set(immediateImages.filter((img) => img.customData?.anchoredMindNodeId === node.id).map((img) => img.id))
+                : new Set<string>();
+
+              const revealSet = new Set([
+                childNode.id,
+                ...childBranchIds,
+                ...childTextIds,
+                ...childImageIds,
+                ...parentImageIds,
+              ]);
+
+              const sceneElements = excalidrawAPI.getSceneElements();
+              const nextElements = sceneElements.map((el) => {
+                if (revealSet.has(el.id)) {
+                  return {
+                    ...el,
+                    opacity: 100,
+                    customData: {
+                      ...el.customData,
+                      hiddenByCollapse: false,
+                    },
+                  };
+                }
+                return el;
+              });
+
+              excalidrawAPI.updateScene({ elements: nextElements });
+            }, (index + 1) * 80);
+
+            expandTimersRef.current.push(timer);
+          });
+
+          if (immediateChildNodes.length === 0 && immediateImages.length > 0) {
+            const revealSet = new Set(immediateImages.map((img) => img.id));
             const sceneElements = excalidrawAPI.getSceneElements();
             const nextElements = sceneElements.map((el) => {
               if (revealSet.has(el.id)) {
@@ -407,31 +465,8 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
               }
               return el;
             });
-
             excalidrawAPI.updateScene({ elements: nextElements });
-          }, (index + 1) * 80);
-
-          expandTimersRef.current.push(timer);
-        });
-
-        // If node has anchored images but no child nodes, reveal its images directly
-        if (immediateChildNodes.length === 0 && immediateImages.length > 0) {
-          const revealSet = new Set(immediateImages.map((img) => img.id));
-          const sceneElements = excalidrawAPI.getSceneElements();
-          const nextElements = sceneElements.map((el) => {
-            if (revealSet.has(el.id)) {
-              return {
-                ...el,
-                opacity: 100,
-                customData: {
-                  ...el.customData,
-                  hiddenByCollapse: false,
-                },
-              };
-            }
-            return el;
-          });
-          excalidrawAPI.updateScene({ elements: nextElements });
+          }
         }
       }
     },
@@ -588,7 +623,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     };
   }, [selectedMindNode, excalidrawAPI, handleAddChildNode]);
 
-  // Compute viewport position of selected mindnode for floating handle button overlays in 4 directions
+  // Compute viewport position of selected mindnode for floating handle button overlays
   const getSelectedNodeOverlayCoords = () => {
     if (!selectedMindNode || !excalidrawAPI) return null;
     const appState = excalidrawAPI.getAppState();
@@ -600,24 +635,41 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     const screenH = selectedMindNode.height * zoom;
 
     return {
-      // Right handle (→)
+      // 4 Edge handles (+)
       rightX: screenX + screenW + 8,
       rightY: screenY + screenH / 2 - 14,
-      // Left handle (←)
       leftX: screenX - 36,
       leftY: screenY + screenH / 2 - 14,
-      // Top handle (↑)
       topX: screenX + screenW / 2 - 14,
       topY: screenY - 36,
-      // Bottom handle (↓)
       bottomX: screenX + screenW / 2 - 14,
       bottomY: screenY + screenH + 8,
-      // Collapse / Expand toggle handle at far right of child handle
+
+      // 4 Corner handles (+) for opening multiple child nodes in specific directions
+      // Top-Left corner: opens Top direction
+      topLeftX: screenX - 14,
+      topLeftY: screenY - 26,
+      // Top-Right corner: opens Right direction
+      topRightCornerX: screenX + screenW - 14,
+      topRightCornerY: screenY - 26,
+      // Bottom-Right corner: opens Bottom direction
+      bottomRightX: screenX + screenW - 14,
+      bottomRightY: screenY + screenH - 2,
+      // Bottom-Left corner: opens Left direction
+      bottomLeftX: screenX - 14,
+      bottomLeftY: screenY + screenH - 2,
+
+      // Incremental / Hierarchical collapse toggle at right side
       collapseX: screenX + screenW + 42,
       collapseY: screenY + screenH / 2 - 14,
-      // Image anchor handle (📷) at top right corner
-      topRightX: screenX + screenW + 8,
-      topRightY: screenY - 14,
+
+      // Full Subtree unfold / collapse toggle at left side
+      leftCollapseX: screenX - 70,
+      leftCollapseY: screenY + screenH / 2 - 14,
+
+      // Image anchor handle (📷)
+      imageAnchorX: screenX + screenW + 8,
+      imageAnchorY: screenY - 36,
     };
   };
 
@@ -713,6 +765,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       {/* Floating Interactive 4-Directional Node Handles */}
       {selectedMindNode && overlayCoords && (
         <div className="mindnode-floating-overlay">
+          {/* Edge Handles (+) */}
           {/* Add Child Right (+) */}
           <button
             className="mindnode-handle-btn plus-dir plus-right"
@@ -777,12 +830,77 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             +
           </button>
 
+          {/* Corner Handles (+) to continually open multiple child nodes in designated directions */}
+          {/* Top-Left Corner (+) -> Top Direction */}
+          <button
+            className="mindnode-handle-btn plus-corner plus-tl"
+            style={{
+              left: `${overlayCoords.topLeftX}px`,
+              top: `${overlayCoords.topLeftY}px`,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddChildNode(selectedMindNode, "top");
+            }}
+            title="Add Multiple Children (Top)"
+          >
+            +
+          </button>
+
+          {/* Top-Right Corner (+) -> Right Direction */}
+          <button
+            className="mindnode-handle-btn plus-corner plus-tr"
+            style={{
+              left: `${overlayCoords.topRightCornerX}px`,
+              top: `${overlayCoords.topRightCornerY}px`,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddChildNode(selectedMindNode, "right");
+            }}
+            title="Add Multiple Children (Right)"
+          >
+            +
+          </button>
+
+          {/* Bottom-Right Corner (+) -> Bottom Direction */}
+          <button
+            className="mindnode-handle-btn plus-corner plus-br"
+            style={{
+              left: `${overlayCoords.bottomRightX}px`,
+              top: `${overlayCoords.bottomY}px`,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddChildNode(selectedMindNode, "bottom");
+            }}
+            title="Add Multiple Children (Bottom)"
+          >
+            +
+          </button>
+
+          {/* Bottom-Left Corner (+) -> Left Direction */}
+          <button
+            className="mindnode-handle-btn plus-corner plus-bl"
+            style={{
+              left: `${overlayCoords.bottomLeftX}px`,
+              top: `${overlayCoords.bottomLeftY}px`,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddChildNode(selectedMindNode, "left");
+            }}
+            title="Add Multiple Children (Left)"
+          >
+            +
+          </button>
+
           {/* Image Anchor Handle (📷) */}
           <button
             className="mindnode-handle-btn image-anchor"
             style={{
-              left: `${overlayCoords.topRightX}px`,
-              top: `${overlayCoords.topRightY}px`,
+              left: `${overlayCoords.imageAnchorX}px`,
+              top: `${overlayCoords.imageAnchorY}px`,
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -793,25 +911,51 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             📷
           </button>
 
-          {/* Collapse / Expand Subtree Toggle Button */}
+          {/* Right Collapse Button: Incremental / Hierarchical Unfold Toggle */}
           {canCollapse && (
             <button
-              className={`mindnode-handle-btn collapse-toggle ${isCollapsed ? "is-collapsed" : ""}`}
+              className={`mindnode-handle-btn collapse-toggle collapse-incremental ${
+                isCollapsed ? "is-collapsed" : ""
+              }`}
               style={{
                 left: `${overlayCoords.collapseX}px`,
                 top: `${overlayCoords.collapseY}px`,
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                handleToggleCollapse(selectedMindNode);
+                handleToggleCollapse(selectedMindNode, "incremental");
               }}
               title={
                 isCollapsed
-                  ? "Expand Subtree (Sequential Reveal)"
+                  ? "Expand Subtree (Sequential / 1 Level at a time)"
                   : "Collapse Subtree & Anchored Images"
               }
             >
               {isCollapsed ? "▶" : "▼"}
+            </button>
+          )}
+
+          {/* Left Collapse Button: Full Subtree Simultaneous Unfold Toggle */}
+          {canCollapse && (
+            <button
+              className={`mindnode-handle-btn collapse-toggle collapse-all ${
+                isCollapsed ? "is-collapsed" : ""
+              }`}
+              style={{
+                left: `${overlayCoords.leftCollapseX}px`,
+                top: `${overlayCoords.leftCollapseY}px`,
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleCollapse(selectedMindNode, "all");
+              }}
+              title={
+                isCollapsed
+                  ? "Expand All Subtree Levels at once"
+                  : "Collapse Subtree & Anchored Images"
+              }
+            >
+              {isCollapsed ? "◀" : "▼"}
             </button>
           )}
         </div>

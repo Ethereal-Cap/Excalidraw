@@ -129,12 +129,45 @@
       }
     }
 
+    &.plus-corner {
+      width: 24px;
+      height: 24px;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: bold;
+
+      &.plus-tl {
+        background: #0284c7;
+        box-shadow: 0 2px 8px rgba(2, 132, 199, 0.45);
+      }
+
+      &.plus-tr {
+        background: #4f46e5;
+        box-shadow: 0 2px 8px rgba(79, 70, 229, 0.45);
+      }
+
+      &.plus-br {
+        background: #059669;
+        box-shadow: 0 2px 8px rgba(5, 150, 105, 0.45);
+      }
+
+      &.plus-bl {
+        background: #7c3aed;
+        box-shadow: 0 2px 8px rgba(124, 58, 237, 0.45);
+      }
+    }
+
     &.collapse-toggle {
       background: #f59e0b;
       color: #ffffff;
       font-size: 13px;
       font-weight: bold;
       box-shadow: 0 2px 10px rgba(245, 158, 11, 0.45);
+
+      &.collapse-all {
+        background: #e11d48;
+        box-shadow: 0 2px 10px rgba(225, 29, 72, 0.45);
+      }
 
       &.is-collapsed {
         background: #10b981;
