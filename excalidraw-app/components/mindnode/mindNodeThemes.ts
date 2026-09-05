@@ -81,3 +81,51 @@ export const MINDNODE_CONSTANTS = {
   BADGE_SIZE: 28,
   BADGE_OFFSET_X: -36, // position to the left of the child node
 };
+
+export interface MindNodeGlobalStyles {
+  themeId?: string;
+  customTheme?: MindNodeTheme;
+  fontSize?: number; // 14, 16, 20, 24
+  roughness?: number; // 0 (architect), 1 (artist), 2 (cartoonist)
+  roundness?: number; // 1 (sharp), 2 (round), 3 (pill)
+  textAlign?: "left" | "center" | "right";
+  opacity?: number; // 0 - 100
+  layoutMode?: "organic" | "threaded";
+}
+
+const CUSTOM_THEME_STORAGE_KEY = "excalidraw-mindnode-custom-theme";
+const GLOBAL_STYLES_STORAGE_KEY = "excalidraw-mindnode-global-styles";
+
+export const getSavedCustomTheme = (): MindNodeTheme | null => {
+  try {
+    const raw = localStorage.getItem(CUSTOM_THEME_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveCustomTheme = (theme: MindNodeTheme): void => {
+  try {
+    localStorage.setItem(CUSTOM_THEME_STORAGE_KEY, JSON.stringify(theme));
+  } catch (err) {
+    console.error("Failed to save custom MindNode theme", err);
+  }
+};
+
+export const getSavedGlobalStyles = (): MindNodeGlobalStyles => {
+  try {
+    const raw = localStorage.getItem(GLOBAL_STYLES_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+export const saveGlobalStyles = (styles: MindNodeGlobalStyles): void => {
+  try {
+    localStorage.setItem(GLOBAL_STYLES_STORAGE_KEY, JSON.stringify(styles));
+  } catch (err) {
+    console.error("Failed to save global MindNode styles", err);
+  }
+};

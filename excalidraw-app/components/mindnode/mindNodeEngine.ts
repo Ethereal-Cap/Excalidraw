@@ -441,3 +441,118 @@ export const getDescendantHierarchy = (
   return levels;
 };
 
+/**
+ * Creates an elbow thread connector linking parent node to child node in YouTube comment style
+ */
+export const createThreadedBranch = (
+  parentRect: ExcalidrawElement,
+  childRect: ExcalidrawElement,
+  strokeColor: string,
+): NonDeletedExcalidrawElement => {
+  const startX = parentRect.x + 20;
+  const startY = parentRect.y + parentRect.height;
+  const endX = childRect.x;
+  const endY = childRect.y + childRect.height / 2;
+
+  const dx = endX - startX;
+  const dy = endY - startY;
+
+  const points: LocalPoint[] = [
+    pointFrom<LocalPoint>(0, 0),
+    pointFrom<LocalPoint>(0, Math.round(dy)),
+    pointFrom<LocalPoint>(Math.round(dx), Math.round(dy)),
+  ];
+
+  const branch = newLinearElement({
+    type: "line",
+    x: startX,
+    y: startY,
+    width: Math.abs(dx) || 1,
+    height: Math.abs(dy) || 1,
+    points: points as any,
+    strokeColor,
+    strokeWidth: 2,
+    strokeStyle: "solid",
+    roughness: 0,
+    roundness: { type: 2 },
+    customData: {
+      isMindNodeBranch: true,
+      parentId: parentRect.id,
+      childId: childRect.id,
+      branchStyle: "threaded",
+    },
+  });
+
+  return branch;
+};
+
+/**
+ * Auto-layouts MindNode tree in YouTube comment / Threaded Outline style:
+ * - Vertical spine drops down from parent
+ * - Children indent horizontally to the right (+40px)
+ * - Subtrees stack sequentially without vertical overlap
+ */
+export const autoLayoutThreadedSubtree = (
+  rootNodeId: string,
+  elements: readonly ExcalidrawElement[],
+): { [id: string]: { x: number; y: number } } => {
+  const elementsMap = new Map(elements.map((el) => [el.id, el]));
+  const root = elementsMap.get(rootNodeId);
+  if (!root) return {};
+
+  const updates: { [id: string]: { x: number; y: number } } = {};
+  const INDENT_X = 40;
+  const GAP_Y = 16;
+
+  // Recursive layout helper that returns the next available Y coordinate
+  const layoutNodeAndDescendants = (nodeId: string, currentX: number, startY: number): number => {
+    const node = elementsMap.get(nodeId);
+    if (!node) return startY;
+
+    updates[nodeId] = { x: currentX, y: startY };
+    let nextY = startY + node.height + GAP_Y;
+
+    // If node is collapsed, its children are hidden and don't take layout space
+    if (node.customData?.collapsed) {
+      return nextY;
+    }
+
+    const children = elements.filter(
+      (el) =>
+        !el.isDeleted &&
+        el.customData?.isMindNode &&
+        el.customData?.parentId === nodeId,
+    );
+
+    if (children.length === 0) {
+      return nextY;
+    }
+
+    children.sort((a, b) => (a.customData?.order ?? a.y) - (b.customData?.order ?? b.y));
+
+    for (const child of children) {
+      nextY = layoutNodeAndDescendants(child.id, currentX + INDENT_X, nextY);
+    }
+
+    return nextY;
+  };
+
+  // If rootNode is a child node, find its top-level root ancestor
+  let topRootId = rootNodeId;
+  let curr = root;
+  while (curr && curr.customData?.parentId) {
+    const p = elementsMap.get(curr.customData.parentId);
+    if (p) {
+      curr = p;
+      topRootId = p.id;
+    } else {
+      break;
+    }
+  }
+
+  const topRoot = elementsMap.get(topRootId) || root;
+  layoutNodeAndDescendants(topRootId, topRoot.x, topRoot.y);
+
+  return updates;
+};
+

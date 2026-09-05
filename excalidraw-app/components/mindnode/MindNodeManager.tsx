@@ -6,17 +6,23 @@ import {
   MINDNODE_THEMES,
   MINDNODE_CONSTANTS,
   type MindNodeTheme,
+  type MindNodeGlobalStyles,
+  getSavedCustomTheme,
+  getSavedGlobalStyles,
 } from "./mindNodeThemes";
 import {
   createMindNodeElement,
   createMindNodeBranch,
+  createThreadedBranch,
   autoLayoutMindNodeSubtree,
+  autoLayoutThreadedSubtree,
   calculateOrganicBranchPoints,
   getAllDescendantIds,
   getDescendantHierarchy,
   getImmediateChildren,
   type MindNodeDirection,
 } from "./mindNodeEngine";
+import { MindNodeSettingsModal } from "./MindNodeSettingsModal";
 import "./MindNodeManager.scss";
 
 interface MindNodeManagerProps {
@@ -27,6 +33,8 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
   const [selectedMindNode, setSelectedMindNode] = useState<ExcalidrawElement | null>(null);
   const [activeThemeId, setActiveThemeId] = useState<string>("mint");
   const [isMindNodeModeActive, setIsMindNodeModeActive] = useState<boolean>(false);
+  const [layoutMode, setLayoutMode] = useState<"organic" | "threaded">("organic");
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const expandTimersRef = useRef<NodeJS.Timeout[]>([]);
 
@@ -35,6 +43,17 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     return () => {
       expandTimersRef.current.forEach((t) => clearTimeout(t));
     };
+  }, []);
+
+  // Load saved default styles on mount
+  useEffect(() => {
+    const saved = getSavedGlobalStyles();
+    if (saved.layoutMode) {
+      setLayoutMode(saved.layoutMode);
+    }
+    if (saved.themeId) {
+      setActiveThemeId(saved.themeId);
+    }
   }, []);
 
   // Monitor Excalidraw selection changes
@@ -122,15 +141,20 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       let childX = parentNode.x + parentNode.width + MINDNODE_CONSTANTS.HORIZONTAL_SPACING;
       let childY = parentNode.y;
 
-      if (direction === "left") {
-        childX = parentNode.x - MINDNODE_CONSTANTS.MIN_NODE_WIDTH - MINDNODE_CONSTANTS.HORIZONTAL_SPACING;
-        childY = parentNode.y;
-      } else if (direction === "top") {
-        childX = parentNode.x;
-        childY = parentNode.y - MINDNODE_CONSTANTS.MIN_NODE_HEIGHT - 90;
-      } else if (direction === "bottom") {
-        childX = parentNode.x;
-        childY = parentNode.y + parentNode.height + 90;
+      if (layoutMode === "threaded") {
+        childX = parentNode.x + 40;
+        childY = parentNode.y + parentNode.height + 16;
+      } else {
+        if (direction === "left") {
+          childX = parentNode.x - MINDNODE_CONSTANTS.MIN_NODE_WIDTH - MINDNODE_CONSTANTS.HORIZONTAL_SPACING;
+          childY = parentNode.y;
+        } else if (direction === "top") {
+          childX = parentNode.x;
+          childY = parentNode.y - MINDNODE_CONSTANTS.MIN_NODE_HEIGHT - 90;
+        } else if (direction === "bottom") {
+          childX = parentNode.x;
+          childY = parentNode.y + parentNode.height + 90;
+        }
       }
 
       const { rect: childRect, text: childText } = createMindNodeElement(
@@ -144,11 +168,17 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         direction,
       );
 
-      const branch = createMindNodeBranch(parentNode, childRect, parentTheme.stroke, direction);
+      const branch =
+        layoutMode === "threaded"
+          ? createThreadedBranch(parentNode, childRect, parentTheme.stroke)
+          : createMindNodeBranch(parentNode, childRect, parentTheme.stroke, direction);
 
       // Re-layout parent and all directional siblings
       const updatedElements = [...elements, childRect, childText, branch];
-      const layoutUpdates = autoLayoutMindNodeSubtree(parentNode.id, updatedElements);
+      const layoutUpdates =
+        layoutMode === "threaded"
+          ? autoLayoutThreadedSubtree(parentNode.id, updatedElements)
+          : autoLayoutMindNodeSubtree(parentNode.id, updatedElements);
 
       const finalElements = updatedElements.map((el) => {
         if (layoutUpdates[el.id]) {
@@ -170,38 +200,51 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
           const pNode = finalElements.find((e) => e.id === pId);
           const child = finalElements.find((e) => e.id === cId);
           if (pNode && child) {
-            const dir: MindNodeDirection = el.customData?.direction || child.customData?.direction || "right";
-            let startX = pNode.x + pNode.width;
-            let startY = pNode.y + pNode.height / 2;
-            let endX = child.x;
-            let endY = child.y + child.height / 2;
+            if (layoutMode === "threaded" || el.customData?.branchStyle === "threaded") {
+              const updatedBranch = createThreadedBranch(pNode, child, el.strokeColor);
+              return {
+                ...el,
+                x: updatedBranch.x,
+                y: updatedBranch.y,
+                width: updatedBranch.width,
+                height: updatedBranch.height,
+                points: (updatedBranch as any).points,
+                roundness: updatedBranch.roundness,
+              };
+            } else {
+              const dir: MindNodeDirection = el.customData?.direction || child.customData?.direction || "right";
+              let startX = pNode.x + pNode.width;
+              let startY = pNode.y + pNode.height / 2;
+              let endX = child.x;
+              let endY = child.y + child.height / 2;
 
-            if (dir === "left") {
-              startX = pNode.x;
-              startY = pNode.y + pNode.height / 2;
-              endX = child.x + child.width;
-              endY = child.y + child.height / 2;
-            } else if (dir === "top") {
-              startX = pNode.x + pNode.width / 2;
-              startY = pNode.y;
-              endX = child.x + child.width / 2;
-              endY = child.y + child.height;
-            } else if (dir === "bottom") {
-              startX = pNode.x + pNode.width / 2;
-              startY = pNode.y + pNode.height;
-              endX = child.x + child.width / 2;
-              endY = child.y;
+              if (dir === "left") {
+                startX = pNode.x;
+                startY = pNode.y + pNode.height / 2;
+                endX = child.x + child.width;
+                endY = child.y + child.height / 2;
+              } else if (dir === "top") {
+                startX = pNode.x + pNode.width / 2;
+                startY = pNode.y;
+                endX = child.x + child.width / 2;
+                endY = child.y + child.height;
+              } else if (dir === "bottom") {
+                startX = pNode.x + pNode.width / 2;
+                startY = pNode.y + pNode.height;
+                endX = child.x + child.width / 2;
+                endY = child.y;
+              }
+
+              const points = calculateOrganicBranchPoints(startX, startY, endX, endY, dir);
+              return {
+                ...el,
+                x: startX,
+                y: startY,
+                width: Math.abs(endX - startX) || 1,
+                height: Math.abs(endY - startY) || 1,
+                points: points as any,
+              };
             }
-
-            const points = calculateOrganicBranchPoints(startX, startY, endX, endY, dir);
-            return {
-              ...el,
-              x: startX,
-              y: startY,
-              width: Math.abs(endX - startX) || 1,
-              height: Math.abs(endY - startY) || 1,
-              points: points as any,
-            };
           }
         }
         // Sync text container position
@@ -227,7 +270,208 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         },
       });
     },
-    [excalidrawAPI, activeThemeId],
+    [excalidrawAPI, activeThemeId, layoutMode],
+  );
+
+  // Switch layout mode and re-layout active mind map
+  const handleChangeLayoutMode = useCallback(
+    (newMode: "organic" | "threaded") => {
+      setLayoutMode(newMode);
+      if (!excalidrawAPI) return;
+
+      const currentElements = excalidrawAPI.getSceneElements();
+      const rootNodes = currentElements.filter(
+        (el) => !el.isDeleted && el.customData?.isMindNode && !el.customData?.parentId,
+      );
+
+      let workingElements = [...currentElements];
+
+      for (const root of rootNodes) {
+        const layoutUpdates =
+          newMode === "threaded"
+            ? autoLayoutThreadedSubtree(root.id, workingElements)
+            : autoLayoutMindNodeSubtree(root.id, workingElements);
+
+        workingElements = workingElements.map((el) => {
+          if (layoutUpdates[el.id]) {
+            return {
+              ...el,
+              x: layoutUpdates[el.id].x,
+              y: layoutUpdates[el.id].y,
+            };
+          }
+          return el;
+        });
+
+        // Re-generate branches for the tree based on newMode
+        workingElements = workingElements.map((el) => {
+          if (el.customData?.isMindNodeBranch) {
+            const pId = el.customData?.parentId;
+            const cId = el.customData?.childId;
+            const pNode = workingElements.find((e) => e.id === pId);
+            const child = workingElements.find((e) => e.id === cId);
+            if (pNode && child) {
+              if (newMode === "threaded") {
+                const updatedBranch = createThreadedBranch(pNode, child, el.strokeColor);
+                return {
+                  ...el,
+                  x: updatedBranch.x,
+                  y: updatedBranch.y,
+                  width: updatedBranch.width,
+                  height: updatedBranch.height,
+                  points: (updatedBranch as any).points,
+                  roundness: updatedBranch.roundness,
+                  customData: {
+                    ...el.customData,
+                    branchStyle: "threaded",
+                  },
+                };
+              } else {
+                const dir: MindNodeDirection = el.customData?.direction || child.customData?.direction || "right";
+                let startX = pNode.x + pNode.width;
+                let startY = pNode.y + pNode.height / 2;
+                let endX = child.x;
+                let endY = child.y + child.height / 2;
+
+                if (dir === "left") {
+                  startX = pNode.x;
+                  startY = pNode.y + pNode.height / 2;
+                  endX = child.x + child.width;
+                  endY = child.y + child.height / 2;
+                } else if (dir === "top") {
+                  startX = pNode.x + pNode.width / 2;
+                  startY = pNode.y;
+                  endX = child.x + child.width / 2;
+                  endY = child.y + child.height;
+                } else if (dir === "bottom") {
+                  startX = pNode.x + pNode.width / 2;
+                  startY = pNode.y + pNode.height;
+                  endX = child.x + child.width / 2;
+                  endY = child.y;
+                }
+
+                const points = calculateOrganicBranchPoints(startX, startY, endX, endY, dir);
+                return {
+                  ...el,
+                  x: startX,
+                  y: startY,
+                  width: Math.abs(endX - startX) || 1,
+                  height: Math.abs(endY - startY) || 1,
+                  points: points as any,
+                  roundness: { type: 2 },
+                  customData: {
+                    ...el.customData,
+                    branchStyle: "organic",
+                  },
+                };
+              }
+            }
+          }
+          // Sync text container position
+          if (el.customData?.isMindNodeText) {
+            const container = workingElements.find((e) => e.id === el.customData?.nodeId);
+            if (container) {
+              return {
+                ...el,
+                x: container.x + (container.width - el.width) / 2,
+                y: container.y + (container.height - el.height) / 2,
+              };
+            }
+          }
+          return el;
+        });
+      }
+
+      excalidrawAPI.updateScene({ elements: workingElements });
+    },
+    [excalidrawAPI],
+  );
+
+  // Apply Global Styles across the entire selected mind map tree
+  const handleApplyGlobalStyles = useCallback(
+    (styles: MindNodeGlobalStyles) => {
+      if (!excalidrawAPI) return;
+      const currentElements = excalidrawAPI.getSceneElements();
+
+      // Find root or subtree of selected node (or all mind nodes if none selected)
+      let targetNodeIds: string[] = [];
+      if (selectedMindNode) {
+        let topRootId = selectedMindNode.id;
+        const elementsMap = new Map(currentElements.map((el) => [el.id, el]));
+        let curr = selectedMindNode;
+        while (curr && curr.customData?.parentId) {
+          const p = elementsMap.get(curr.customData.parentId);
+          if (p) {
+            curr = p;
+            topRootId = p.id;
+          } else {
+            break;
+          }
+        }
+        const { nodeIds } = getAllDescendantIds(topRootId, currentElements);
+        targetNodeIds = [topRootId, ...nodeIds];
+      } else {
+        targetNodeIds = currentElements
+          .filter((el) => !el.isDeleted && el.customData?.isMindNode)
+          .map((el) => el.id);
+      }
+
+      const targetNodeIdSet = new Set(targetNodeIds);
+
+      // Selected theme
+      let theme: MindNodeTheme | undefined = undefined;
+      if (styles.customTheme) {
+        theme = styles.customTheme;
+      } else if (styles.themeId) {
+        theme = MINDNODE_THEMES.find((t) => t.id === styles.themeId);
+      }
+
+      const updatedElements = currentElements.map((el) => {
+        if (el.isDeleted) return el;
+
+        // Rectangle nodes
+        if (el.customData?.isMindNode && targetNodeIdSet.has(el.id)) {
+          return {
+            ...el,
+            ...(theme ? { backgroundColor: theme.bg, strokeColor: theme.stroke } : {}),
+            ...(styles.roughness !== undefined ? { roughness: styles.roughness } : {}),
+            ...(styles.roundness !== undefined ? { roundness: { type: styles.roundness as any } } : {}),
+            ...(styles.opacity !== undefined ? { opacity: styles.opacity } : {}),
+            customData: {
+              ...el.customData,
+              ...(styles.themeId ? { themeId: styles.themeId } : {}),
+              ...(styles.layoutMode ? { layoutMode: styles.layoutMode } : {}),
+            },
+          };
+        }
+
+        // Text elements
+        if (el.customData?.isMindNodeText && targetNodeIdSet.has(el.customData?.nodeId)) {
+          return {
+            ...el,
+            ...(theme ? { strokeColor: theme.text } : {}),
+            ...(styles.fontSize ? { fontSize: styles.fontSize } : {}),
+            ...(styles.textAlign ? { textAlign: styles.textAlign } : {}),
+            ...(styles.opacity !== undefined ? { opacity: styles.opacity } : {}),
+          };
+        }
+
+        // Branches
+        if (el.customData?.isMindNodeBranch && targetNodeIdSet.has(el.customData?.parentId)) {
+          return {
+            ...el,
+            ...(theme ? { strokeColor: theme.stroke } : {}),
+            ...(styles.roughness !== undefined ? { roughness: styles.roughness } : {}),
+            ...(styles.opacity !== undefined ? { opacity: styles.opacity } : {}),
+          };
+        }
+
+        return el;
+      });
+
+      excalidrawAPI.updateScene({ elements: updatedElements as readonly ExcalidrawElement[] });
+    },
+    [excalidrawAPI, selectedMindNode],
   );
 
   // Toggle Collapse / Expand (mode: "incremental" for 1-level unfold, "all" for all levels at once)
@@ -266,6 +510,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             return {
               ...el,
               opacity: 0,
+              locked: true,
               customData: {
                 ...el.customData,
                 hiddenByCollapse: true,
@@ -308,6 +553,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
               return {
                 ...el,
                 opacity: 100,
+                locked: false,
                 customData: {
                   ...el.customData,
                   hiddenByCollapse: false,
@@ -442,6 +688,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
                   return {
                     ...el,
                     opacity: 100,
+                    locked: false,
                     customData: {
                       ...el.customData,
                       hiddenByCollapse: false,
@@ -465,6 +712,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
                 return {
                   ...el,
                   opacity: 100,
+                  locked: false,
                   customData: {
                     ...el.customData,
                     hiddenByCollapse: false,
@@ -724,6 +972,24 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
           <span className="mindnode-label">MindMap</span>
         </button>
 
+        {/* Layout Style Switcher (🌿 Organic / 🧵 Threaded) */}
+        <div className="mindnode-layout-pill">
+          <button
+            className={`layout-pill-btn ${layoutMode === "organic" ? "active" : ""}`}
+            onClick={() => handleChangeLayoutMode("organic")}
+            title="Organic 4-Directional Bézier Layout"
+          >
+            🌿 Organic
+          </button>
+          <button
+            className={`layout-pill-btn ${layoutMode === "threaded" ? "active" : ""}`}
+            onClick={() => handleChangeLayoutMode("threaded")}
+            title="Threaded / YouTube Comment Outline Layout"
+          >
+            🧵 Threaded
+          </button>
+        </div>
+
         {/* Theme Picker Dropdown */}
         <div className="mindnode-theme-selector">
           {MINDNODE_THEMES.map((theme) => (
@@ -768,7 +1034,27 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             />
           ))}
         </div>
+
+        {/* Global Settings Trigger (⚙️) */}
+        <button
+          className="mindnode-btn-settings"
+          onClick={() => setIsSettingsModalOpen(true)}
+          title="MindMap Global Styles & Palette Settings"
+        >
+          ⚙️
+        </button>
       </div>
+
+      {/* MindNode Global Styles & Palette Modal */}
+      <MindNodeSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        activeThemeId={activeThemeId}
+        onSelectTheme={(themeId) => setActiveThemeId(themeId)}
+        onApplyGlobalStyles={handleApplyGlobalStyles}
+        currentLayoutMode={layoutMode}
+        onChangeLayoutMode={handleChangeLayoutMode}
+      />
 
       {/* Floating Interactive 4-Directional Node Handles */}
       {selectedMindNode && overlayCoords && (
@@ -876,7 +1162,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             className="mindnode-handle-btn plus-corner plus-br"
             style={{
               left: `${overlayCoords.bottomRightX}px`,
-              top: `${overlayCoords.bottomY}px`,
+              top: `${overlayCoords.bottomRightY}px`,
             }}
             onClick={(e) => {
               e.stopPropagation();
