@@ -65,6 +65,29 @@ export const AppMainMenu: React.FC<{
   refresh: () => void;
   excalidrawAPI: ExcalidrawImperativeAPI | null;
 }> = React.memo((props) => {
+  const [mindNodeMode, setMindNodeMode] = React.useState<"creator" | "presenter">(() => {
+    return (localStorage.getItem("mindnode_app_mode") as "creator" | "presenter") || "creator";
+  });
+
+  React.useEffect(() => {
+    const handleModeChange = () => {
+      const mode = (localStorage.getItem("mindnode_app_mode") as "creator" | "presenter") || "creator";
+      setMindNodeMode(mode);
+    };
+    window.addEventListener("mindnode:mode-change", handleModeChange);
+    window.addEventListener("storage", handleModeChange);
+    return () => {
+      window.removeEventListener("mindnode:mode-change", handleModeChange);
+      window.removeEventListener("storage", handleModeChange);
+    };
+  }, []);
+
+  const handleSetMode = (newMode: "creator" | "presenter") => {
+    localStorage.setItem("mindnode_app_mode", newMode);
+    setMindNodeMode(newMode);
+    window.dispatchEvent(new CustomEvent("mindnode:mode-change", { detail: newMode }));
+  };
+
   return (
     <MainMenu>
       <MainMenu.Item
@@ -76,33 +99,86 @@ export const AppMainMenu: React.FC<{
       >
         New Canvas
       </MainMenu.Item>
-      <MainMenu.Item
-        icon={brainIcon}
-        onSelect={() => {
-          if (!props.excalidrawAPI) return;
-          const api = props.excalidrawAPI;
-          const appState = api.getAppState();
-          const zoom = appState.zoom.value;
-          const centerX = -appState.scrollX + appState.width / (2 * zoom);
-          const centerY = -appState.scrollY + appState.height / (2 * zoom);
-
-          const { rect, text } = (window as any).__createMindNode
-            ? (window as any).__createMindNode(centerX - 80, centerY - 24, "Central Topic")
-            : { rect: null, text: null };
-
-          if (rect && text) {
-            const elements = api.getSceneElements();
-            api.updateScene({
-              elements: [...elements, rect, text],
-              appState: {
-                selectedElementIds: { [rect.id]: true },
-              },
-            });
-          }
-        }}
-      >
-        Create Mind Map
-      </MainMenu.Item>
+      <MainMenu.ItemCustom className="mindnode-mode-toggle-container">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            width: "100%",
+            padding: "4px 8px",
+            userSelect: "none",
+            gap: "12px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontWeight: 600,
+              fontSize: "13px",
+            }}
+          >
+            <span style={{ fontSize: "16px" }}>
+              {mindNodeMode === "creator" ? "🎨" : "📽️"}
+            </span>
+            <span>{mindNodeMode === "creator" ? "Creator Mode" : "Presenter Mode"}</span>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              background: "var(--color-surface-hover, rgba(0,0,0,0.06))",
+              borderRadius: "8px",
+              padding: "2px",
+              gap: "2px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSetMode("creator");
+              }}
+              style={{
+                border: "none",
+                background: mindNodeMode === "creator" ? "#4f46e5" : "transparent",
+                color: mindNodeMode === "creator" ? "#ffffff" : "var(--color-on-surface, #64748b)",
+                borderRadius: "6px",
+                padding: "3px 8px",
+                fontSize: "11px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+              title="Creator Mode: Full editing, top toolbar & node creation controls"
+            >
+              Creator
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSetMode("presenter");
+              }}
+              style={{
+                border: "none",
+                background: mindNodeMode === "presenter" ? "#4f46e5" : "transparent",
+                color: mindNodeMode === "presenter" ? "#ffffff" : "var(--color-on-surface, #64748b)",
+                borderRadius: "6px",
+                padding: "3px 8px",
+                fontSize: "11px",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+              title="Presenter Mode: Minimalist canvas, hides top toolbar & plus buttons, keeps collapse/expand controls"
+            >
+              Presenter
+            </button>
+          </div>
+        </div>
+      </MainMenu.ItemCustom>
       <MainMenu.DefaultItems.LoadScene />
       <MainMenu.DefaultItems.SaveToActiveFile />
       <MainMenu.DefaultItems.Export />

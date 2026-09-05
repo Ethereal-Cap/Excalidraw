@@ -30,6 +30,9 @@ interface MindNodeManagerProps {
 }
 
 export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI }) => {
+  const [appMode, setAppMode] = useState<"creator" | "presenter">(() => {
+    return (localStorage.getItem("mindnode_app_mode") as "creator" | "presenter") || "creator";
+  });
   const [selectedMindNode, setSelectedMindNode] = useState<NonDeletedExcalidrawElement | null>(null);
   const [activeThemeId, setActiveThemeId] = useState<string>("mint");
   const [isMindNodeModeActive, setIsMindNodeModeActive] = useState<boolean>(false);
@@ -37,6 +40,20 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const expandTimersRef = useRef<NodeJS.Timeout[]>([]);
+
+  // Listen to mode change events (Creator vs Presenter)
+  useEffect(() => {
+    const handleModeChange = () => {
+      const mode = (localStorage.getItem("mindnode_app_mode") as "creator" | "presenter") || "creator";
+      setAppMode(mode);
+    };
+    window.addEventListener("mindnode:mode-change", handleModeChange);
+    window.addEventListener("storage", handleModeChange);
+    return () => {
+      window.removeEventListener("mindnode:mode-change", handleModeChange);
+      window.removeEventListener("storage", handleModeChange);
+    };
+  }, []);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -1046,92 +1063,94 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         onChange={handleImageFileChange}
       />
 
-      {/* MindNode Floating Control Pill on Toolbar */}
-      <div className="mindnode-top-toolbar" title="MindNode Mind Mapping">
-        <button
-          className={`mindnode-btn-mode ${isMindNodeModeActive ? "active" : ""}`}
-          onClick={() => {
-            setIsMindNodeModeActive(!isMindNodeModeActive);
-            handleAddRootNode();
-          }}
-          title="Create MindNode Mind Map"
-        >
-          <span className="mindnode-icon">🧠</span>
-          <span className="mindnode-label">MindMap</span>
-        </button>
-
-        {/* Layout Style Switcher (🌿 Organic / 🧵 Threaded) */}
-        <div className="mindnode-layout-pill">
+      {/* MindNode Floating Control Pill on Toolbar (Visible only in Creator Mode) */}
+      {appMode === "creator" && (
+        <div className="mindnode-top-toolbar" title="MindNode Mind Mapping">
           <button
-            className={`layout-pill-btn ${layoutMode === "organic" ? "active" : ""}`}
-            onClick={() => handleChangeLayoutMode("organic")}
-            title="Organic 4-Directional Bézier Layout"
+            className={`mindnode-btn-mode ${isMindNodeModeActive ? "active" : ""}`}
+            onClick={() => {
+              setIsMindNodeModeActive(!isMindNodeModeActive);
+              handleAddRootNode();
+            }}
+            title="Create MindNode Mind Map"
           >
-            🌿 Organic
+            <span className="mindnode-icon">🧠</span>
+            <span className="mindnode-label">MindMap</span>
           </button>
-          <button
-            className={`layout-pill-btn ${layoutMode === "threaded" ? "active" : ""}`}
-            onClick={() => handleChangeLayoutMode("threaded")}
-            title="Threaded / YouTube Comment Outline Layout"
-          >
-            🧵 Threaded
-          </button>
-        </div>
 
-        {/* Theme Picker Dropdown */}
-        <div className="mindnode-theme-selector">
-          {getAllThemes().map((theme) => (
+          {/* Layout Style Switcher (🌿 Organic / 🧵 Threaded) */}
+          <div className="mindnode-layout-pill">
             <button
-              key={theme.id}
-              className={`mindnode-theme-dot ${activeThemeId === theme.id ? "selected" : ""}`}
-              style={{ backgroundColor: theme.bg, borderColor: theme.stroke }}
-              onClick={() => {
-                setActiveThemeId(theme.id);
-                if (selectedMindNode && excalidrawAPI) {
-                  const elements = excalidrawAPI.getSceneElements();
-                  const updated = elements.map((el) => {
-                    if (el.id === selectedMindNode.id) {
-                      return {
-                        ...el,
-                        strokeColor: theme.stroke,
-                        backgroundColor: theme.bg,
-                        customData: { ...el.customData, themeId: theme.id },
-                      };
-                    }
-                    if (el.customData?.isMindNodeText && el.customData?.nodeId === selectedMindNode.id) {
-                      return {
-                        ...el,
-                        strokeColor: theme.text,
-                      };
-                    }
-                    if (
-                      el.customData?.isMindNodeBranch &&
-                      el.customData?.parentId === selectedMindNode.id
-                    ) {
-                      return {
-                        ...el,
-                        strokeColor: theme.stroke,
-                      };
-                    }
-                    return el;
-                  });
-                  excalidrawAPI.updateScene({ elements: updated });
-                }
-              }}
-              title={theme.name}
-            />
-          ))}
-        </div>
+              className={`layout-pill-btn ${layoutMode === "organic" ? "active" : ""}`}
+              onClick={() => handleChangeLayoutMode("organic")}
+              title="Organic 4-Directional Bézier Layout"
+            >
+              🌿 Organic
+            </button>
+            <button
+              className={`layout-pill-btn ${layoutMode === "threaded" ? "active" : ""}`}
+              onClick={() => handleChangeLayoutMode("threaded")}
+              title="Threaded / YouTube Comment Outline Layout"
+            >
+              🧵 Threaded
+            </button>
+          </div>
 
-        {/* Global Settings Trigger (⚙️) */}
-        <button
-          className="mindnode-btn-settings"
-          onClick={() => setIsSettingsModalOpen(true)}
-          title="MindMap Global Styles & Palette Settings"
-        >
-          ⚙️
-        </button>
-      </div>
+          {/* Theme Picker Dropdown */}
+          <div className="mindnode-theme-selector">
+            {getAllThemes().map((theme) => (
+              <button
+                key={theme.id}
+                className={`mindnode-theme-dot ${activeThemeId === theme.id ? "selected" : ""}`}
+                style={{ backgroundColor: theme.bg, borderColor: theme.stroke }}
+                onClick={() => {
+                  setActiveThemeId(theme.id);
+                  if (selectedMindNode && excalidrawAPI) {
+                    const elements = excalidrawAPI.getSceneElements();
+                    const updated = elements.map((el) => {
+                      if (el.id === selectedMindNode.id) {
+                        return {
+                          ...el,
+                          strokeColor: theme.stroke,
+                          backgroundColor: theme.bg,
+                          customData: { ...el.customData, themeId: theme.id },
+                        };
+                      }
+                      if (el.customData?.isMindNodeText && el.customData?.nodeId === selectedMindNode.id) {
+                        return {
+                          ...el,
+                          strokeColor: theme.text,
+                        };
+                      }
+                      if (
+                        el.customData?.isMindNodeBranch &&
+                        el.customData?.parentId === selectedMindNode.id
+                      ) {
+                        return {
+                          ...el,
+                          strokeColor: theme.stroke,
+                        };
+                      }
+                      return el;
+                    });
+                    excalidrawAPI.updateScene({ elements: updated });
+                  }
+                }}
+                title={theme.name}
+              />
+            ))}
+          </div>
+
+          {/* Global Settings Trigger (⚙️) */}
+          <button
+            className="mindnode-btn-settings"
+            onClick={() => setIsSettingsModalOpen(true)}
+            title="MindMap Global Styles & Palette Settings"
+          >
+            ⚙️
+          </button>
+        </div>
+      )}
 
       {/* MindNode Global Styles & Palette Modal */}
       <MindNodeSettingsModal
@@ -1144,156 +1163,161 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         onChangeLayoutMode={handleChangeLayoutMode}
       />
 
-      {/* Floating Interactive 4-Directional Node Handles */}
+      {/* Floating Interactive Node Handles */}
       {selectedMindNode && overlayCoords && (
         <div className="mindnode-floating-overlay">
-          {/* Edge Handles (+) */}
-          {/* Add Child Right (+) */}
-          <button
-            className="mindnode-handle-btn plus-dir plus-right"
-            style={{
-              left: `${overlayCoords.rightX}px`,
-              top: `${overlayCoords.rightY}px`,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "right");
-            }}
-            title="Expand Right (Tab)"
-          >
-            +
-          </button>
+          {/* Creator Mode Controls: Add Child (+), Corner (+), and Image Anchor (📷) */}
+          {appMode === "creator" && (
+            <>
+              {/* Edge Handles (+) */}
+              {/* Add Child Right (+) */}
+              <button
+                className="mindnode-handle-btn plus-dir plus-right"
+                style={{
+                  left: `${overlayCoords.rightX}px`,
+                  top: `${overlayCoords.rightY}px`,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChildNode(selectedMindNode, "right");
+                }}
+                title="Expand Right (Tab)"
+              >
+                +
+              </button>
 
-          {/* Add Child Left (+) */}
-          <button
-            className="mindnode-handle-btn plus-dir plus-left"
-            style={{
-              left: `${overlayCoords.leftX}px`,
-              top: `${overlayCoords.leftY}px`,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "left");
-            }}
-            title="Expand Left"
-          >
-            +
-          </button>
+              {/* Add Child Left (+) */}
+              <button
+                className="mindnode-handle-btn plus-dir plus-left"
+                style={{
+                  left: `${overlayCoords.leftX}px`,
+                  top: `${overlayCoords.leftY}px`,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChildNode(selectedMindNode, "left");
+                }}
+                title="Expand Left"
+              >
+                +
+              </button>
 
-          {/* Add Child Top (+) */}
-          <button
-            className="mindnode-handle-btn plus-dir plus-top"
-            style={{
-              left: `${overlayCoords.topX}px`,
-              top: `${overlayCoords.topY}px`,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "top");
-            }}
-            title="Expand Top"
-          >
-            +
-          </button>
+              {/* Add Child Top (+) */}
+              <button
+                className="mindnode-handle-btn plus-dir plus-top"
+                style={{
+                  left: `${overlayCoords.topX}px`,
+                  top: `${overlayCoords.topY}px`,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChildNode(selectedMindNode, "top");
+                }}
+                title="Expand Top"
+              >
+                +
+              </button>
 
-          {/* Add Child Bottom (+) */}
-          <button
-            className="mindnode-handle-btn plus-dir plus-bottom"
-            style={{
-              left: `${overlayCoords.bottomX}px`,
-              top: `${overlayCoords.bottomY}px`,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "bottom");
-            }}
-            title="Expand Bottom"
-          >
-            +
-          </button>
+              {/* Add Child Bottom (+) */}
+              <button
+                className="mindnode-handle-btn plus-dir plus-bottom"
+                style={{
+                  left: `${overlayCoords.bottomX}px`,
+                  top: `${overlayCoords.bottomY}px`,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChildNode(selectedMindNode, "bottom");
+                }}
+                title="Expand Bottom"
+              >
+                +
+              </button>
 
-          {/* Corner Handles (+) to continually open multiple child nodes in designated directions */}
-          {/* Top-Left Corner (+) -> Top Direction */}
-          <button
-            className="mindnode-handle-btn plus-corner plus-tl"
-            style={{
-              left: `${overlayCoords.topLeftX}px`,
-              top: `${overlayCoords.topLeftY}px`,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "top", true);
-            }}
-            title="Add Multiple Children (Top)"
-          >
-            +
-          </button>
+              {/* Corner Handles (+) to continually open multiple child nodes in designated directions */}
+              {/* Top-Left Corner (+) -> Top Direction */}
+              <button
+                className="mindnode-handle-btn plus-corner plus-tl"
+                style={{
+                  left: `${overlayCoords.topLeftX}px`,
+                  top: `${overlayCoords.topLeftY}px`,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChildNode(selectedMindNode, "top", true);
+                }}
+                title="Add Multiple Children (Top)"
+              >
+                +
+              </button>
 
-          {/* Top-Right Corner (+) -> Right Direction */}
-          <button
-            className="mindnode-handle-btn plus-corner plus-tr"
-            style={{
-              left: `${overlayCoords.topRightCornerX}px`,
-              top: `${overlayCoords.topRightCornerY}px`,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "right", true);
-            }}
-            title="Add Multiple Children (Right)"
-          >
-            +
-          </button>
+              {/* Top-Right Corner (+) -> Right Direction */}
+              <button
+                className="mindnode-handle-btn plus-corner plus-tr"
+                style={{
+                  left: `${overlayCoords.topRightCornerX}px`,
+                  top: `${overlayCoords.topRightCornerY}px`,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChildNode(selectedMindNode, "right", true);
+                }}
+                title="Add Multiple Children (Right)"
+              >
+                +
+              </button>
 
-          {/* Bottom-Right Corner (+) -> Bottom Direction */}
-          <button
-            className="mindnode-handle-btn plus-corner plus-br"
-            style={{
-              left: `${overlayCoords.bottomRightX}px`,
-              top: `${overlayCoords.bottomRightY}px`,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "bottom", true);
-            }}
-            title="Add Multiple Children (Bottom)"
-          >
-            +
-          </button>
+              {/* Bottom-Right Corner (+) -> Bottom Direction */}
+              <button
+                className="mindnode-handle-btn plus-corner plus-br"
+                style={{
+                  left: `${overlayCoords.bottomRightX}px`,
+                  top: `${overlayCoords.bottomRightY}px`,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChildNode(selectedMindNode, "bottom", true);
+                }}
+                title="Add Multiple Children (Bottom)"
+              >
+                +
+              </button>
 
-          {/* Bottom-Left Corner (+) -> Left Direction */}
-          <button
-            className="mindnode-handle-btn plus-corner plus-bl"
-            style={{
-              left: `${overlayCoords.bottomLeftX}px`,
-              top: `${overlayCoords.bottomLeftY}px`,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "left", true);
-            }}
-            title="Add Multiple Children (Left)"
-          >
-            +
-          </button>
+              {/* Bottom-Left Corner (+) -> Left Direction */}
+              <button
+                className="mindnode-handle-btn plus-corner plus-bl"
+                style={{
+                  left: `${overlayCoords.bottomLeftX}px`,
+                  top: `${overlayCoords.bottomLeftY}px`,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddChildNode(selectedMindNode, "left", true);
+                }}
+                title="Add Multiple Children (Left)"
+              >
+                +
+              </button>
 
-          {/* Image Anchor Handle (📷) */}
-          <button
-            className="mindnode-handle-btn image-anchor"
-            style={{
-              left: `${overlayCoords.imageAnchorX}px`,
-              top: `${overlayCoords.imageAnchorY}px`,
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleTriggerImageAnchor();
-            }}
-            title="Anchor Multiple Images to this Node"
-          >
-            📷
-          </button>
+              {/* Image Anchor Handle (📷) */}
+              <button
+                className="mindnode-handle-btn image-anchor"
+                style={{
+                  left: `${overlayCoords.imageAnchorX}px`,
+                  top: `${overlayCoords.imageAnchorY}px`,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTriggerImageAnchor();
+                }}
+                title="Anchor Multiple Images to this Node"
+              >
+                📷
+              </button>
+            </>
+          )}
 
-          {/* Right Collapse Button: Incremental / Hierarchical Unfold Toggle */}
+          {/* Right Collapse Button: Incremental / Hierarchical Unfold Toggle (Visible in both modes) */}
           {canCollapse && (
             <button
               className={`mindnode-handle-btn collapse-toggle collapse-incremental ${
@@ -1317,7 +1341,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             </button>
           )}
 
-          {/* Left Collapse Button: Full Subtree Simultaneous Unfold Toggle */}
+          {/* Left Collapse Button: Full Subtree Simultaneous Unfold Toggle (Visible in both modes) */}
           {canCollapse && (
             <button
               className={`mindnode-handle-btn collapse-toggle collapse-all ${
