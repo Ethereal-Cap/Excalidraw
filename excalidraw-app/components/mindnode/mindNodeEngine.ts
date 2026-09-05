@@ -5,9 +5,22 @@ import type {
   ExcalidrawLinearElement,
 } from "@excalidraw/element/types";
 import { newElement, newTextElement, newLinearElement } from "@excalidraw/element";
-import { MINDNODE_THEMES, MINDNODE_CONSTANTS } from "./mindNodeThemes";
+import { MINDNODE_THEMES, MINDNODE_CONSTANTS, getThemeById } from "./mindNodeThemes";
 
 export type MindNodeDirection = "right" | "left" | "top" | "bottom";
+
+export interface MindNodeStyleOverrides {
+  backgroundColor?: string;
+  strokeColor?: string;
+  textColor?: string;
+  roughness?: number;
+  roundness?: number;
+  opacity?: number;
+  fontSize?: number;
+  fontFamily?: number;
+  textAlign?: "left" | "center" | "right";
+  layoutMode?: "organic" | "threaded";
+}
 
 export interface MindNodeData {
   isMindNode: boolean;
@@ -20,6 +33,8 @@ export interface MindNodeData {
   order?: number;
   collapsed?: boolean;
   direction?: MindNodeDirection;
+  layoutMode?: "organic" | "threaded";
+  branchStyle?: "organic" | "threaded";
   attachedImages?: string[]; // fileIds or elementIds of attached images
 }
 
@@ -75,7 +90,7 @@ export const calculateOrganicBranchPoints = (
 
 /**
  * Creates a complete MindNode pill element with attached container text.
- * Default label is "" (blank) so double-clicking immediately starts typing.
+ * Supports style overrides and parent style inheritance.
  */
 export const createMindNodeElement = (
   x: number,
@@ -86,16 +101,27 @@ export const createMindNodeElement = (
   parentId: string | null = null,
   order = 1,
   direction: MindNodeDirection = "right",
+  styleOverrides?: MindNodeStyleOverrides,
 ): {
   rect: NonDeletedExcalidrawElement;
   text: NonDeletedExcalidrawElement;
 } => {
-  const theme = MINDNODE_THEMES.find((t) => t.id === themeId) || MINDNODE_THEMES[0];
-  const fontSize = nodeType === "root" ? 18 : 15;
+  const theme = getThemeById(themeId);
+  const fontSize = styleOverrides?.fontSize || (nodeType === "root" ? 18 : 15);
   
   const approxTextWidth = label.length > 0 ? label.length * (fontSize * 0.62) : 0;
   const width = Math.max(approxTextWidth + MINDNODE_CONSTANTS.NODE_PADDING_X * 2, MINDNODE_CONSTANTS.MIN_NODE_WIDTH);
   const height = nodeType === "root" ? 48 : 42;
+
+  const bg = styleOverrides?.backgroundColor || theme.bg;
+  const stroke = styleOverrides?.strokeColor || theme.stroke;
+  const textColor = styleOverrides?.textColor || theme.text;
+  const roughness = styleOverrides?.roughness ?? 0;
+  const roundness = styleOverrides?.roundness ?? 3;
+  const opacity = styleOverrides?.opacity ?? 100;
+  const textAlign = styleOverrides?.textAlign || "center";
+  const fontFamily = styleOverrides?.fontFamily || 2;
+  const layoutMode = styleOverrides?.layoutMode || "organic";
 
   const rect = newElement({
     type: "rectangle",
@@ -103,13 +129,14 @@ export const createMindNodeElement = (
     y,
     width,
     height,
-    strokeColor: theme.stroke,
-    backgroundColor: theme.bg,
+    strokeColor: stroke,
+    backgroundColor: bg,
     fillStyle: "solid",
     strokeWidth: 2,
     strokeStyle: "solid",
-    roughness: 0,
-    roundness: { type: 3 }, // smooth rounded pill corners
+    roughness,
+    roundness: { type: roundness as any },
+    opacity,
     customData: {
       isMindNode: true,
       nodeType,
@@ -119,6 +146,7 @@ export const createMindNodeElement = (
       order,
       collapsed: false,
       direction,
+      layoutMode,
     },
   });
 
@@ -129,12 +157,13 @@ export const createMindNodeElement = (
   const text = newTextElement({
     text: label,
     fontSize,
-    fontFamily: 2, // clean sans-serif
-    textAlign: "center",
+    fontFamily,
+    textAlign,
     verticalAlign: "middle",
     x: centerX,
     y: centerY,
-    strokeColor: theme.text,
+    strokeColor: textColor,
+    opacity,
     containerId: rect.id,
     customData: {
       isMindNodeText: true,

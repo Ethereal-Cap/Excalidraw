@@ -3,11 +3,11 @@ import type { ExcalidrawImperativeAPI, BinaryFileData, DataURL } from "@excalidr
 import type { ExcalidrawElement, NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 import { newImageElement } from "@excalidraw/element";
 import {
-  MINDNODE_THEMES,
   MINDNODE_CONSTANTS,
   type MindNodeTheme,
   type MindNodeGlobalStyles,
-  getSavedCustomTheme,
+  getAllThemes,
+  getThemeById,
   getSavedGlobalStyles,
 } from "./mindNodeThemes";
 import {
@@ -30,7 +30,7 @@ interface MindNodeManagerProps {
 }
 
 export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI }) => {
-  const [selectedMindNode, setSelectedMindNode] = useState<ExcalidrawElement | null>(null);
+  const [selectedMindNode, setSelectedMindNode] = useState<NonDeletedExcalidrawElement | null>(null);
   const [activeThemeId, setActiveThemeId] = useState<string>("mint");
   const [isMindNodeModeActive, setIsMindNodeModeActive] = useState<boolean>(false);
   const [layoutMode, setLayoutMode] = useState<"organic" | "threaded">("organic");
@@ -63,9 +63,15 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     const unsubscribe = excalidrawAPI.onChange((elements, appState) => {
       const selectedIds = Object.keys(appState.selectedElementIds || {});
       if (selectedIds.length === 1) {
-        const el = elements.find((e) => e.id === selectedIds[0]);
+        const el = elements.find((e) => e.id === selectedIds[0] && !e.isDeleted);
         if (el && el.customData?.isMindNode) {
-          setSelectedMindNode(el);
+          setSelectedMindNode(el as NonDeletedExcalidrawElement);
+          if (el.customData?.layoutMode) {
+            setLayoutMode(el.customData.layoutMode);
+          }
+          if (el.customData?.themeId) {
+            setActiveThemeId(el.customData.themeId);
+          }
           return;
         }
       }
@@ -79,9 +85,11 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
 
   useEffect(() => {
     (window as any).__createMindNode = (x: number, y: number, label: string) => {
-      return createMindNodeElement(x, y, label, activeThemeId, "root", null);
+      return createMindNodeElement(x, y, label, activeThemeId, "root", null, 1, "right", {
+        layoutMode,
+      });
     };
-  }, [activeThemeId]);
+  }, [activeThemeId, layoutMode]);
 
   // Add Root MindNode to canvas
   const handleAddRootNode = useCallback(
@@ -101,6 +109,9 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         themeId,
         "root",
         null,
+        1,
+        "right",
+        { layoutMode },
       );
 
       const currentElements = excalidrawAPI.getSceneElements();
@@ -111,13 +122,13 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         },
       });
     },
-    [excalidrawAPI, activeThemeId],
+    [excalidrawAPI, activeThemeId, layoutMode],
   );
 
-  // Add Child Node in any of the 4 directions (right, left, top, bottom)
+  // Handle adding child node
   const handleAddChildNode = useCallback(
     (
-      parentNode: ExcalidrawElement,
+      parentNode: NonDeletedExcalidrawElement,
       direction: MindNodeDirection = "right",
       keepParentSelected = false,
     ) => {
@@ -125,8 +136,27 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
 
       const elements = excalidrawAPI.getSceneElements();
       const parentThemeId = parentNode.customData?.themeId || activeThemeId;
-      const parentTheme =
-        MINDNODE_THEMES.find((t) => t.id === parentThemeId) || MINDNODE_THEMES[0];
+      const parentLayoutMode: "organic" | "threaded" =
+        parentNode.customData?.layoutMode || layoutMode || "organic";
+
+      // Find parent text element to inherit text formatting
+      const parentText = elements.find(
+        (e) => !e.isDeleted && e.customData?.isMindNodeText && e.customData?.nodeId === parentNode.id,
+      ) as any;
+
+      // Inherit parent's exact formatting and colors
+      const styleOverrides = {
+        backgroundColor: parentNode.backgroundColor,
+        strokeColor: parentNode.strokeColor,
+        textColor: parentText?.strokeColor || undefined,
+        roughness: parentNode.roughness,
+        roundness: (parentNode.roundness as any)?.type ?? 3,
+        opacity: parentNode.opacity,
+        fontSize: parentText?.fontSize ?? 15,
+        fontFamily: parentText?.fontFamily ?? 2,
+        textAlign: parentText?.textAlign || "center",
+        layoutMode: parentLayoutMode,
+      };
 
       // Existing children in the same direction
       const existingChildren = elements.filter(
@@ -141,7 +171,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       let childX = parentNode.x + parentNode.width + MINDNODE_CONSTANTS.HORIZONTAL_SPACING;
       let childY = parentNode.y;
 
-      if (layoutMode === "threaded") {
+      if (parentLayoutMode === "threaded") {
         childX = parentNode.x + 40;
         childY = parentNode.y + parentNode.height + 16;
       } else {
@@ -166,17 +196,18 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         parentNode.id,
         childIndex,
         direction,
+        styleOverrides,
       );
 
       const branch =
-        layoutMode === "threaded"
-          ? createThreadedBranch(parentNode, childRect, parentTheme.stroke)
-          : createMindNodeBranch(parentNode, childRect, parentTheme.stroke, direction);
+        parentLayoutMode === "threaded"
+          ? createThreadedBranch(parentNode, childRect, parentNode.strokeColor)
+          : createMindNodeBranch(parentNode, childRect, parentNode.strokeColor, direction);
 
       // Re-layout parent and all directional siblings
       const updatedElements = [...elements, childRect, childText, branch];
       const layoutUpdates =
-        layoutMode === "threaded"
+        parentLayoutMode === "threaded"
           ? autoLayoutThreadedSubtree(parentNode.id, updatedElements)
           : autoLayoutMindNodeSubtree(parentNode.id, updatedElements);
 
@@ -200,8 +231,13 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
           const pNode = finalElements.find((e) => e.id === pId);
           const child = finalElements.find((e) => e.id === cId);
           if (pNode && child) {
-            if (layoutMode === "threaded" || el.customData?.branchStyle === "threaded") {
-              const updatedBranch = createThreadedBranch(pNode, child, el.strokeColor);
+            const isThreaded =
+              parentLayoutMode === "threaded" ||
+              el.customData?.branchStyle === "threaded" ||
+              pNode.customData?.layoutMode === "threaded";
+
+            if (isThreaded) {
+              const updatedBranch = createThreadedBranch(pNode, child, pNode.strokeColor);
               return {
                 ...el,
                 x: updatedBranch.x,
@@ -273,20 +309,58 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     [excalidrawAPI, activeThemeId, layoutMode],
   );
 
-  // Switch layout mode and re-layout active mind map
+  // Switch layout mode strictly for the selected mind map tree
   const handleChangeLayoutMode = useCallback(
     (newMode: "organic" | "threaded") => {
       setLayoutMode(newMode);
       if (!excalidrawAPI) return;
 
       const currentElements = excalidrawAPI.getSceneElements();
-      const rootNodes = currentElements.filter(
-        (el) => !el.isDeleted && el.customData?.isMindNode && !el.customData?.parentId,
-      );
+
+      // If a node is selected, find its top root and only update that tree!
+      let targetRootIds: string[] = [];
+      if (selectedMindNode) {
+        let topRootId = selectedMindNode.id;
+        const elementsMap = new Map(currentElements.map((el) => [el.id, el]));
+        let curr = selectedMindNode;
+        while (curr && curr.customData?.parentId) {
+          const p = elementsMap.get(curr.customData.parentId);
+          if (p) {
+            curr = p;
+            topRootId = p.id;
+          } else {
+            break;
+          }
+        }
+        targetRootIds = [topRootId];
+      } else {
+        // No node selected: Just updates layoutMode state for new mind maps
+        return;
+      }
 
       let workingElements = [...currentElements];
 
-      for (const root of rootNodes) {
+      for (const rootId of targetRootIds) {
+        const root = workingElements.find((e) => e.id === rootId);
+        if (!root) continue;
+
+        const { nodeIds } = getAllDescendantIds(rootId, workingElements);
+        const treeNodeIdSet = new Set([rootId, ...nodeIds]);
+
+        // Tag all nodes in this specific tree with newMode
+        workingElements = workingElements.map((el) => {
+          if (el.customData?.isMindNode && treeNodeIdSet.has(el.id)) {
+            return {
+              ...el,
+              customData: {
+                ...el.customData,
+                layoutMode: newMode,
+              },
+            };
+          }
+          return el;
+        });
+
         const layoutUpdates =
           newMode === "threaded"
             ? autoLayoutThreadedSubtree(root.id, workingElements)
@@ -303,16 +377,16 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
           return el;
         });
 
-        // Re-generate branches for the tree based on newMode
+        // Re-generate branches for this specific tree based on newMode
         workingElements = workingElements.map((el) => {
-          if (el.customData?.isMindNodeBranch) {
+          if (el.customData?.isMindNodeBranch && treeNodeIdSet.has(el.customData?.parentId)) {
             const pId = el.customData?.parentId;
             const cId = el.customData?.childId;
             const pNode = workingElements.find((e) => e.id === pId);
             const child = workingElements.find((e) => e.id === cId);
             if (pNode && child) {
               if (newMode === "threaded") {
-                const updatedBranch = createThreadedBranch(pNode, child, el.strokeColor);
+                const updatedBranch = createThreadedBranch(pNode, child, pNode.strokeColor);
                 return {
                   ...el,
                   x: updatedBranch.x,
@@ -368,7 +442,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             }
           }
           // Sync text container position
-          if (el.customData?.isMindNodeText) {
+          if (el.customData?.isMindNodeText && treeNodeIdSet.has(el.customData?.nodeId)) {
             const container = workingElements.find((e) => e.id === el.customData?.nodeId);
             if (container) {
               return {
@@ -384,16 +458,16 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
 
       excalidrawAPI.updateScene({ elements: workingElements });
     },
-    [excalidrawAPI],
+    [excalidrawAPI, selectedMindNode],
   );
 
-  // Apply Global Styles across the entire selected mind map tree
+  // Apply Global Styles strictly across the selected mind map tree
   const handleApplyGlobalStyles = useCallback(
     (styles: MindNodeGlobalStyles) => {
       if (!excalidrawAPI) return;
       const currentElements = excalidrawAPI.getSceneElements();
 
-      // Find root or subtree of selected node (or all mind nodes if none selected)
+      // Find root of selected node
       let targetNodeIds: string[] = [];
       if (selectedMindNode) {
         let topRootId = selectedMindNode.id;
@@ -411,9 +485,8 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         const { nodeIds } = getAllDescendantIds(topRootId, currentElements);
         targetNodeIds = [topRootId, ...nodeIds];
       } else {
-        targetNodeIds = currentElements
-          .filter((el) => !el.isDeleted && el.customData?.isMindNode)
-          .map((el) => el.id);
+        // Do not modify anything if no node is selected (prevents altering other mind maps)
+        return;
       }
 
       const targetNodeIdSet = new Set(targetNodeIds);
@@ -423,7 +496,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       if (styles.customTheme) {
         theme = styles.customTheme;
       } else if (styles.themeId) {
-        theme = MINDNODE_THEMES.find((t) => t.id === styles.themeId);
+        theme = getThemeById(styles.themeId);
       }
 
       const updatedElements = currentElements.map((el) => {
@@ -992,7 +1065,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
 
         {/* Theme Picker Dropdown */}
         <div className="mindnode-theme-selector">
-          {MINDNODE_THEMES.map((theme) => (
+          {getAllThemes().map((theme) => (
             <button
               key={theme.id}
               className={`mindnode-theme-dot ${activeThemeId === theme.id ? "selected" : ""}`}

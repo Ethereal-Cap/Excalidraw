@@ -1,7 +1,7 @@
 /**
  * MindNode Theme & Styling System for Excalidraw
  * Provides the pastel palette, node types, and branch curve colors
- * inspired by MindNode.
+ * inspired by MindNode with full multi-theme customization and unlimited presets.
  */
 
 export interface MindNodeTheme {
@@ -12,9 +12,10 @@ export interface MindNodeTheme {
   text: string;
   badgeBg: string;
   badgeText: string;
+  isCustom?: boolean;
 }
 
-export const MINDNODE_THEMES: MindNodeTheme[] = [
+export const DEFAULT_MINDNODE_THEMES: MindNodeTheme[] = [
   {
     id: "mint",
     name: "Mint Fresh",
@@ -93,25 +94,67 @@ export interface MindNodeGlobalStyles {
   layoutMode?: "organic" | "threaded";
 }
 
-const CUSTOM_THEME_STORAGE_KEY = "excalidraw-mindnode-custom-theme";
+const ALL_THEMES_STORAGE_KEY = "excalidraw-mindnode-all-themes";
 const GLOBAL_STYLES_STORAGE_KEY = "excalidraw-mindnode-global-styles";
 
-export const getSavedCustomTheme = (): MindNodeTheme | null => {
+export const getAllThemes = (): MindNodeTheme[] => {
   try {
-    const raw = localStorage.getItem(CUSTOM_THEME_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
+    const raw = localStorage.getItem(ALL_THEMES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load MindNode themes from storage", err);
+  }
+  return DEFAULT_MINDNODE_THEMES;
+};
+
+export const saveAllThemes = (themes: MindNodeTheme[]): void => {
+  try {
+    localStorage.setItem(ALL_THEMES_STORAGE_KEY, JSON.stringify(themes));
+  } catch (err) {
+    console.error("Failed to save MindNode themes to storage", err);
   }
 };
 
-export const saveCustomTheme = (theme: MindNodeTheme): void => {
-  try {
-    localStorage.setItem(CUSTOM_THEME_STORAGE_KEY, JSON.stringify(theme));
-  } catch (err) {
-    console.error("Failed to save custom MindNode theme", err);
+export const saveTheme = (theme: MindNodeTheme): MindNodeTheme[] => {
+  const current = getAllThemes();
+  const existingIdx = current.findIndex((t) => t.id === theme.id);
+  let next: MindNodeTheme[];
+  if (existingIdx >= 0) {
+    next = [...current];
+    next[existingIdx] = theme;
+  } else {
+    next = [...current, theme];
   }
+  saveAllThemes(next);
+  return next;
 };
+
+export const deleteTheme = (themeId: string): MindNodeTheme[] => {
+  const current = getAllThemes();
+  const next = current.filter((t) => t.id !== themeId);
+  saveAllThemes(next);
+  return next;
+};
+
+export const resetAllThemesToDefault = (): MindNodeTheme[] => {
+  try {
+    localStorage.removeItem(ALL_THEMES_STORAGE_KEY);
+  } catch {}
+  return DEFAULT_MINDNODE_THEMES;
+};
+
+export const getThemeById = (themeId?: string): MindNodeTheme => {
+  const themes = getAllThemes();
+  if (!themeId) return themes[0] || DEFAULT_MINDNODE_THEMES[0];
+  return themes.find((t) => t.id === themeId) || themes[0] || DEFAULT_MINDNODE_THEMES[0];
+};
+
+export const MINDNODE_THEMES = DEFAULT_MINDNODE_THEMES;
 
 export const getSavedGlobalStyles = (): MindNodeGlobalStyles => {
   try {

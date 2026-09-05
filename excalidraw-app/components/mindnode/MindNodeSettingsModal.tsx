@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import {
-  MINDNODE_THEMES,
   type MindNodeTheme,
   type MindNodeGlobalStyles,
-  getSavedCustomTheme,
-  saveCustomTheme,
+  getAllThemes,
+  saveTheme,
+  deleteTheme,
+  resetAllThemesToDefault,
   getSavedGlobalStyles,
   saveGlobalStyles,
 } from "./mindNodeThemes";
@@ -29,7 +30,9 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
   currentLayoutMode,
   onChangeLayoutMode,
 }) => {
+  const [themesList, setThemesList] = useState<MindNodeTheme[]>([]);
   const [selectedThemeId, setSelectedThemeId] = useState<string>(activeThemeId);
+  const [themeName, setThemeName] = useState<string>("");
   const [customBg, setCustomBg] = useState<string>("#bbf7d0");
   const [customStroke, setCustomStroke] = useState<string>("#bbf7d0");
   const [customText, setCustomText] = useState<string>("#14532d");
@@ -40,15 +43,22 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
   const [opacity, setOpacity] = useState<number>(100);
   const [layoutMode, setLayoutMode] = useState<"organic" | "threaded">(currentLayoutMode);
 
+  // Load themes & styles on open
   useEffect(() => {
-    setSelectedThemeId(activeThemeId);
-    setLayoutMode(currentLayoutMode);
-    const saved = getSavedCustomTheme();
-    if (saved) {
-      setCustomBg(saved.bg);
-      setCustomStroke(saved.stroke);
-      setCustomText(saved.text);
+    const all = getAllThemes();
+    setThemesList(all);
+
+    const currentTheme = all.find((t) => t.id === activeThemeId) || all[0];
+    if (currentTheme) {
+      setSelectedThemeId(currentTheme.id);
+      setThemeName(currentTheme.name);
+      setCustomBg(currentTheme.bg);
+      setCustomStroke(currentTheme.stroke);
+      setCustomText(currentTheme.text);
     }
+
+    setLayoutMode(currentLayoutMode);
+
     const savedStyles = getSavedGlobalStyles();
     if (savedStyles.fontSize) setFontSize(savedStyles.fontSize);
     if (savedStyles.roughness !== undefined) setRoughness(savedStyles.roughness);
@@ -59,47 +69,84 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSaveAsDefaultTheme = () => {
-    const customTheme: MindNodeTheme = {
-      id: "custom",
-      name: "Custom Theme",
+  const handleSelectThemeChip = (theme: MindNodeTheme) => {
+    setSelectedThemeId(theme.id);
+    setThemeName(theme.name);
+    setCustomBg(theme.bg);
+    setCustomStroke(theme.stroke);
+    setCustomText(theme.text);
+    onSelectTheme(theme.id);
+  };
+
+  const handleSaveCurrentTheme = () => {
+    const updatedTheme: MindNodeTheme = {
+      id: selectedThemeId,
+      name: themeName || "Custom Palette",
+      bg: customBg,
+      stroke: customStroke,
+      text: customText,
+      badgeBg: customStroke,
+      badgeText: customText,
+      isCustom: !["mint", "cyan", "rose", "lavender", "amber", "coral"].includes(selectedThemeId),
+    };
+    const nextThemes = saveTheme(updatedTheme);
+    setThemesList(nextThemes);
+    onSelectTheme(updatedTheme.id);
+    alert(`Saved changes to palette: "${updatedTheme.name}"!`);
+  };
+
+  const handleAddNewCustomTheme = () => {
+    const newId = `theme_${Date.now()}`;
+    const newTheme: MindNodeTheme = {
+      id: newId,
+      name: `Palette ${themesList.length + 1}`,
+      bg: customBg,
+      stroke: customStroke,
+      text: customText,
+      badgeBg: customStroke,
+      badgeText: customText,
+      isCustom: true,
+    };
+    const nextThemes = saveTheme(newTheme);
+    setThemesList(nextThemes);
+    setSelectedThemeId(newId);
+    setThemeName(newTheme.name);
+    onSelectTheme(newId);
+  };
+
+  const handleDeleteTheme = (idToDelete: string) => {
+    if (["mint", "cyan", "rose", "lavender", "amber", "coral"].includes(idToDelete)) {
+      alert("Base default themes cannot be deleted. You can edit their colors or reset them.");
+      return;
+    }
+    const nextThemes = deleteTheme(idToDelete);
+    setThemesList(nextThemes);
+    const fallback = nextThemes[0];
+    handleSelectThemeChip(fallback);
+  };
+
+  const handleResetDefaults = () => {
+    if (window.confirm("Reset all 6 default palettes to original pastel colors?")) {
+      const resetThemes = resetAllThemesToDefault();
+      setThemesList(resetThemes);
+      handleSelectThemeChip(resetThemes[0]);
+    }
+  };
+
+  const handleApply = () => {
+    const currentTheme: MindNodeTheme = {
+      id: selectedThemeId,
+      name: themeName,
       bg: customBg,
       stroke: customStroke,
       text: customText,
       badgeBg: customStroke,
       badgeText: customText,
     };
-    saveCustomTheme(customTheme);
-    saveGlobalStyles({
-      themeId: selectedThemeId,
-      customTheme,
-      fontSize,
-      roughness,
-      roundness,
-      textAlign,
-      opacity,
-      layoutMode,
-    });
-    alert("Saved as default MindMap theme & settings!");
-  };
-
-  const handleApply = () => {
-    const customTheme: MindNodeTheme | undefined =
-      selectedThemeId === "custom"
-        ? {
-            id: "custom",
-            name: "Custom Theme",
-            bg: customBg,
-            stroke: customStroke,
-            text: customText,
-            badgeBg: customStroke,
-            badgeText: customText,
-          }
-        : undefined;
 
     const styles: MindNodeGlobalStyles = {
       themeId: selectedThemeId,
-      customTheme,
+      customTheme: currentTheme,
       fontSize,
       roughness,
       roundness,
@@ -107,6 +154,8 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
       opacity,
       layoutMode,
     };
+
+    saveGlobalStyles(styles);
 
     if (layoutMode !== currentLayoutMode) {
       onChangeLayoutMode(layoutMode);
@@ -116,13 +165,15 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
     onClose();
   };
 
+  const isBuiltInTheme = ["mint", "cyan", "rose", "lavender", "amber", "coral"].includes(selectedThemeId);
+
   return (
     <div className="mindnode-modal-backdrop" onClick={onClose}>
       <div className="mindnode-modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="mindnode-modal-header">
           <div className="header-title">
             <span className="icon">⚙️</span>
-            <h3>MindMap Global Styles & Layout</h3>
+            <h3>MindMap Global Styles & Palette Customizer</h3>
           </div>
           <button className="close-btn" onClick={onClose} title="Close">
             ✕
@@ -132,7 +183,7 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
         <div className="mindnode-modal-body">
           {/* Section: Layout Mode */}
           <div className="setting-section">
-            <label className="section-label">📐 Branching Layout Style</label>
+            <label className="section-label">📐 Layout Style (Per Mind Map)</label>
             <div className="segmented-control">
               <button
                 className={`segment-btn ${layoutMode === "organic" ? "active" : ""}`}
@@ -149,89 +200,113 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Section: Color Palettes */}
+          {/* Section: Color Palettes & Preset Customizer */}
           <div className="setting-section">
-            <label className="section-label">🎨 Color Theme Preset</label>
-            <div className="theme-palette-grid">
-              {MINDNODE_THEMES.map((theme) => (
-                <button
-                  key={theme.id}
-                  className={`theme-chip ${selectedThemeId === theme.id ? "selected" : ""}`}
-                  style={{ backgroundColor: theme.bg, borderColor: theme.stroke, color: theme.text }}
-                  onClick={() => {
-                    setSelectedThemeId(theme.id);
-                    onSelectTheme(theme.id);
-                    setCustomBg(theme.bg);
-                    setCustomStroke(theme.stroke);
-                    setCustomText(theme.text);
-                  }}
-                >
-                  {theme.name}
+            <div className="section-label-row">
+              <label className="section-label">🎨 Color Palettes ({themesList.length})</label>
+              <div className="palette-header-actions">
+                <button className="text-btn" onClick={handleAddNewCustomTheme} title="Create New Palette">
+                  ➕ Add Palette
                 </button>
-              ))}
-              <button
-                className={`theme-chip custom-chip ${selectedThemeId === "custom" ? "selected" : ""}`}
-                style={{ backgroundColor: customBg, borderColor: customStroke, color: customText }}
-                onClick={() => setSelectedThemeId("custom")}
-              >
-                ✨ Custom
-              </button>
+                <button className="text-btn danger" onClick={handleResetDefaults} title="Reset Default 6 Palettes">
+                  🔄 Reset Defaults
+                </button>
+              </div>
             </div>
 
-            {/* Custom Color Pickers */}
-            <div className="custom-color-pickers">
-              <div className="color-field">
-                <span>Fill:</span>
-                <input
-                  type="color"
-                  value={customBg}
-                  onChange={(e) => {
-                    setCustomBg(e.target.value);
-                    setSelectedThemeId("custom");
-                  }}
-                />
+            <div className="theme-palette-grid">
+              {themesList.map((theme) => (
+                <div
+                  key={theme.id}
+                  className={`theme-chip-wrapper ${selectedThemeId === theme.id ? "selected" : ""}`}
+                >
+                  <button
+                    className="theme-chip"
+                    style={{ backgroundColor: theme.bg, borderColor: theme.stroke, color: theme.text }}
+                    onClick={() => handleSelectThemeChip(theme)}
+                  >
+                    {theme.name}
+                  </button>
+                  {theme.isCustom && (
+                    <button
+                      className="delete-chip-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteTheme(theme.id);
+                      }}
+                      title="Delete Palette"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Selected Theme Color Editor */}
+            <div className="custom-color-editor-box">
+              <div className="theme-name-row">
+                <label>Palette Name:</label>
                 <input
                   type="text"
-                  value={customBg}
-                  className="hex-input"
-                  onChange={(e) => setCustomBg(e.target.value)}
+                  value={themeName}
+                  onChange={(e) => setThemeName(e.target.value)}
+                  placeholder="Palette Name"
+                  className="theme-name-input"
                 />
               </div>
 
-              <div className="color-field">
-                <span>Border/Branch:</span>
-                <input
-                  type="color"
-                  value={customStroke}
-                  onChange={(e) => {
-                    setCustomStroke(e.target.value);
-                    setSelectedThemeId("custom");
-                  }}
-                />
-                <input
-                  type="text"
-                  value={customStroke}
-                  className="hex-input"
-                  onChange={(e) => setCustomStroke(e.target.value)}
-                />
+              <div className="custom-color-pickers">
+                <div className="color-field">
+                  <span>Fill:</span>
+                  <input
+                    type="color"
+                    value={customBg}
+                    onChange={(e) => setCustomBg(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    value={customBg}
+                    className="hex-input"
+                    onChange={(e) => setCustomBg(e.target.value)}
+                  />
+                </div>
+
+                <div className="color-field">
+                  <span>Border & Branch:</span>
+                  <input
+                    type="color"
+                    value={customStroke}
+                    onChange={(e) => setCustomStroke(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    value={customStroke}
+                    className="hex-input"
+                    onChange={(e) => setCustomStroke(e.target.value)}
+                  />
+                </div>
+
+                <div className="color-field">
+                  <span>Text:</span>
+                  <input
+                    type="color"
+                    value={customText}
+                    onChange={(e) => setCustomText(e.target.value)}
+                  />
+                  <input
+                    type="text"
+                    value={customText}
+                    className="hex-input"
+                    onChange={(e) => setCustomText(e.target.value)}
+                  />
+                </div>
               </div>
 
-              <div className="color-field">
-                <span>Text:</span>
-                <input
-                  type="color"
-                  value={customText}
-                  onChange={(e) => {
-                    setCustomText(e.target.value);
-                    setSelectedThemeId("custom");
-                  }}
-                />
-                <input
-                  type="text"
-                  value={customText}
-                  className="hex-input"
-                  onChange={(e) => setCustomText(e.target.value)}
-                />
+              <div className="editor-actions-row">
+                <button className="btn-save-preset" onClick={handleSaveCurrentTheme}>
+                  💾 Save Palette ({themeName})
+                </button>
               </div>
             </div>
           </div>
@@ -339,17 +414,12 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
 
         {/* Modal Footer Actions */}
         <div className="mindnode-modal-footer">
-          <button className="btn-secondary" onClick={handleSaveAsDefaultTheme}>
-            💾 Save as Default
+          <button className="btn-cancel" onClick={onClose}>
+            Cancel
           </button>
-          <div className="footer-right">
-            <button className="btn-cancel" onClick={onClose}>
-              Cancel
-            </button>
-            <button className="btn-primary" onClick={handleApply}>
-              ⚡ Apply to Entire Mind Map
-            </button>
-          </div>
+          <button className="btn-primary" onClick={handleApply}>
+            ⚡ Apply to Selected Mind Map
+          </button>
         </div>
       </div>
     </div>

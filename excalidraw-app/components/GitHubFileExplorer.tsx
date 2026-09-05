@@ -750,7 +750,7 @@ export const GitHubFileExplorer = ({
       </div>
       <div className="explorer-meta-info" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span>Connected to Shared Team Repository</span>
-        <span style={{ opacity: 0.6, fontSize: "0.8rem", fontWeight: "bold" }}>v1.11</span>
+        <span style={{ opacity: 0.6, fontSize: "0.8rem", fontWeight: "bold" }}>v1.12</span>
       </div>
 
       <div className="explorer-section">
