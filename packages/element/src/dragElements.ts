@@ -284,10 +284,29 @@ export const dragSelectedElements = (
             e.customData?.childId === mn.id,
         );
         if (parent && incomingBranch) {
-          const startX = parent.x + parent.width;
-          const startY = parent.y + parent.height / 2;
-          const endX = mn.x;
-          const endY = mn.y + mn.height / 2;
+          const dir = (incomingBranch.customData?.direction || mn.customData?.direction || "right") as "right" | "left" | "top" | "bottom";
+          let startX = parent.x + parent.width;
+          let startY = parent.y + parent.height / 2;
+          let endX = mn.x;
+          let endY = mn.y + mn.height / 2;
+
+          if (dir === "left") {
+            startX = parent.x;
+            startY = parent.y + parent.height / 2;
+            endX = mn.x + mn.width;
+            endY = mn.y + mn.height / 2;
+          } else if (dir === "top") {
+            startX = parent.x + parent.width / 2;
+            startY = parent.y;
+            endX = mn.x + mn.width / 2;
+            endY = mn.y + mn.height;
+          } else if (dir === "bottom") {
+            startX = parent.x + parent.width / 2;
+            startY = parent.y + parent.height;
+            endX = mn.x + mn.width / 2;
+            endY = mn.y;
+          }
+
           const dx = endX - startX;
           const dy = endY - startY;
 
@@ -295,10 +314,24 @@ export const dragSelectedElements = (
           const steps = 12;
           for (let i = 1; i <= steps; i++) {
             const t = i / steps;
-            const cx1 = dx * 0.45;
-            const cy1 = 0;
-            const cx2 = dx * 0.55;
-            const cy2 = dy;
+            let cx1 = 0;
+            let cy1 = 0;
+            let cx2 = 0;
+            let cy2 = 0;
+
+            if (dir === "right" || dir === "left") {
+              cx1 = dx * 0.45;
+              cy1 = 0;
+              cx2 = dx * 0.55;
+              cy2 = dy;
+            } else {
+              // "top" or "bottom"
+              cx1 = 0;
+              cy1 = dy * 0.45;
+              cx2 = dx;
+              cy2 = dy * 0.55;
+            }
+
             const u = 1 - t;
             const tt = t * t;
             const uu = u * u;
@@ -311,8 +344,8 @@ export const dragSelectedElements = (
           scene.mutateElement(incomingBranch as ExcalidrawLinearElement, {
             x: startX,
             y: startY,
-            width: Math.abs(dx),
-            height: Math.abs(dy),
+            width: Math.abs(dx) || 1,
+            height: Math.abs(dy) || 1,
             points,
           });
         }

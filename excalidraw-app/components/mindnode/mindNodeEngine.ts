@@ -7,6 +7,8 @@ import type {
 import { newElement, newTextElement, newLinearElement } from "@excalidraw/element";
 import { MINDNODE_THEMES, MINDNODE_CONSTANTS } from "./mindNodeThemes";
 
+export type MindNodeDirection = "right" | "left" | "top" | "bottom";
+
 export interface MindNodeData {
   isMindNode: boolean;
   nodeType: "root" | "child";
@@ -17,17 +19,19 @@ export interface MindNodeData {
   themeId?: string;
   order?: number;
   collapsed?: boolean;
+  direction?: MindNodeDirection;
   attachedImages?: string[]; // fileIds or elementIds of attached images
 }
 
 /**
- * Generate organic cubic bezier curve points for MindNode connection
+ * Generate organic cubic bezier curve points for MindNode connection in 4 directions
  */
 export const calculateOrganicBranchPoints = (
   fromX: number,
   fromY: number,
   toX: number,
   toY: number,
+  direction: MindNodeDirection = "right",
 ): readonly LocalPoint[] => {
   const dx = toX - fromX;
   const dy = toY - fromY;
@@ -37,10 +41,23 @@ export const calculateOrganicBranchPoints = (
   
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
-    const cx1 = dx * 0.45;
-    const cy1 = 0;
-    const cx2 = dx * 0.55;
-    const cy2 = dy;
+    let cx1 = 0;
+    let cy1 = 0;
+    let cx2 = 0;
+    let cy2 = 0;
+
+    if (direction === "right" || direction === "left") {
+      cx1 = dx * 0.45;
+      cy1 = 0;
+      cx2 = dx * 0.55;
+      cy2 = dy;
+    } else {
+      // "top" or "bottom"
+      cx1 = 0;
+      cy1 = dy * 0.45;
+      cx2 = dx;
+      cy2 = dy * 0.55;
+    }
 
     const u = 1 - t;
     const tt = t * t;
@@ -57,16 +74,18 @@ export const calculateOrganicBranchPoints = (
 };
 
 /**
- * Creates a complete MindNode pill element with attached container text
+ * Creates a complete MindNode pill element with attached container text.
+ * Default label is "" (blank) so double-clicking immediately starts typing.
  */
 export const createMindNodeElement = (
   x: number,
   y: number,
-  label: string,
+  label = "",
   themeId = "mint",
   nodeType: "root" | "child" = "root",
   parentId: string | null = null,
   order = 1,
+  direction: MindNodeDirection = "right",
 ): {
   rect: NonDeletedExcalidrawElement;
   text: NonDeletedExcalidrawElement;
@@ -74,7 +93,7 @@ export const createMindNodeElement = (
   const theme = MINDNODE_THEMES.find((t) => t.id === themeId) || MINDNODE_THEMES[0];
   const fontSize = nodeType === "root" ? 18 : 15;
   
-  const approxTextWidth = Math.max(label.length * (fontSize * 0.62), 120);
+  const approxTextWidth = label.length > 0 ? label.length * (fontSize * 0.62) : 0;
   const width = Math.max(approxTextWidth + MINDNODE_CONSTANTS.NODE_PADDING_X * 2, MINDNODE_CONSTANTS.MIN_NODE_WIDTH);
   const height = nodeType === "root" ? 48 : 42;
 
@@ -99,10 +118,11 @@ export const createMindNodeElement = (
       childrenIds: [],
       order,
       collapsed: false,
+      direction,
     },
   });
 
-  // Center coordinates for newTextElement (which subtracts metrics.width * 0.5 and metrics.height * 0.5)
+  // Center coordinates for newTextElement
   const centerX = x + width / 2;
   const centerY = y + height / 2;
 
@@ -129,27 +149,44 @@ export const createMindNodeElement = (
 };
 
 /**
- * Creates an organic curved branch connector linking parent node to child node
+ * Creates an organic curved branch connector linking parent node to child node in any of the 4 directions
  */
 export const createMindNodeBranch = (
   parentRect: ExcalidrawElement,
   childRect: ExcalidrawElement,
   strokeColor: string,
+  direction: MindNodeDirection = "right",
 ): NonDeletedExcalidrawElement => {
-  const startX = parentRect.x + parentRect.width;
-  const startY = parentRect.y + parentRect.height / 2;
+  let startX = parentRect.x + parentRect.width;
+  let startY = parentRect.y + parentRect.height / 2;
+  let endX = childRect.x;
+  let endY = childRect.y + childRect.height / 2;
 
-  const endX = childRect.x;
-  const endY = childRect.y + childRect.height / 2;
+  if (direction === "left") {
+    startX = parentRect.x;
+    startY = parentRect.y + parentRect.height / 2;
+    endX = childRect.x + childRect.width;
+    endY = childRect.y + childRect.height / 2;
+  } else if (direction === "top") {
+    startX = parentRect.x + parentRect.width / 2;
+    startY = parentRect.y;
+    endX = childRect.x + childRect.width / 2;
+    endY = childRect.y + childRect.height;
+  } else if (direction === "bottom") {
+    startX = parentRect.x + parentRect.width / 2;
+    startY = parentRect.y + parentRect.height;
+    endX = childRect.x + childRect.width / 2;
+    endY = childRect.y;
+  }
 
-  const points = calculateOrganicBranchPoints(startX, startY, endX, endY);
+  const points = calculateOrganicBranchPoints(startX, startY, endX, endY, direction);
 
   const branch = newLinearElement({
     type: "line",
     x: startX,
     y: startY,
-    width: Math.abs(endX - startX),
-    height: Math.abs(endY - startY),
+    width: Math.abs(endX - startX) || 1,
+    height: Math.abs(endY - startY) || 1,
     points: points as any,
     strokeColor,
     strokeWidth: 2.5,
@@ -160,6 +197,7 @@ export const createMindNodeBranch = (
       isMindNodeBranch: true,
       parentId: parentRect.id,
       childId: childRect.id,
+      direction,
     },
   });
 
@@ -167,7 +205,7 @@ export const createMindNodeBranch = (
 };
 
 /**
- * Auto-layouts MindNode children in a balanced vertical tree to the right of parent
+ * Auto-layouts MindNode children across all 4 directions (right, left, top, bottom)
  */
 export const autoLayoutMindNodeSubtree = (
   parentId: string,
@@ -186,26 +224,63 @@ export const autoLayoutMindNodeSubtree = (
 
   if (children.length === 0) return {};
 
-  children.sort((a, b) => (a.customData?.order ?? a.y) - (b.customData?.order ?? b.y));
-
-  const totalHeight =
-    children.reduce((acc, c) => acc + c.height, 0) +
-    (children.length - 1) * MINDNODE_CONSTANTS.VERTICAL_SPACING;
-
-  const parentCenterY = parent.y + parent.height / 2;
-  const startY = parentCenterY - totalHeight / 2;
-  const targetX = parent.x + parent.width + MINDNODE_CONSTANTS.HORIZONTAL_SPACING;
-
   const updates: { [id: string]: { x: number; y: number } } = {};
-  let currentY = startY;
 
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i];
-    updates[child.id] = {
-      x: targetX,
-      y: currentY,
-    };
-    currentY += child.height + MINDNODE_CONSTANTS.VERTICAL_SPACING;
+  // Group children by direction
+  const directions: MindNodeDirection[] = ["right", "left", "top", "bottom"];
+
+  for (const dir of directions) {
+    const dirChildren = children.filter((c) => (c.customData?.direction || "right") === dir);
+    if (dirChildren.length === 0) continue;
+
+    dirChildren.sort((a, b) => (a.customData?.order ?? a.y) - (b.customData?.order ?? b.y));
+
+    if (dir === "right" || dir === "left") {
+      const totalHeight =
+        dirChildren.reduce((acc, c) => acc + c.height, 0) +
+        (dirChildren.length - 1) * MINDNODE_CONSTANTS.VERTICAL_SPACING;
+
+      const parentCenterY = parent.y + parent.height / 2;
+      const startY = parentCenterY - totalHeight / 2;
+      let currentY = startY;
+
+      for (let i = 0; i < dirChildren.length; i++) {
+        const child = dirChildren[i];
+        const targetX =
+          dir === "right"
+            ? parent.x + parent.width + MINDNODE_CONSTANTS.HORIZONTAL_SPACING
+            : parent.x - child.width - MINDNODE_CONSTANTS.HORIZONTAL_SPACING;
+
+        updates[child.id] = {
+          x: targetX,
+          y: currentY,
+        };
+        currentY += child.height + MINDNODE_CONSTANTS.VERTICAL_SPACING;
+      }
+    } else {
+      // "top" or "bottom"
+      const totalWidth =
+        dirChildren.reduce((acc, c) => acc + c.width, 0) +
+        (dirChildren.length - 1) * MINDNODE_CONSTANTS.VERTICAL_SPACING;
+
+      const parentCenterX = parent.x + parent.width / 2;
+      const startX = parentCenterX - totalWidth / 2;
+      let currentX = startX;
+
+      for (let i = 0; i < dirChildren.length; i++) {
+        const child = dirChildren[i];
+        const targetY =
+          dir === "bottom"
+            ? parent.y + parent.height + 90
+            : parent.y - child.height - 90;
+
+        updates[child.id] = {
+          x: currentX,
+          y: targetY,
+        };
+        currentX += child.width + MINDNODE_CONSTANTS.VERTICAL_SPACING;
+      }
+    }
   }
 
   return updates;

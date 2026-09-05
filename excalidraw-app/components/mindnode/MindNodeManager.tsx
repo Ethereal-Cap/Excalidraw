@@ -15,6 +15,7 @@ import {
   getAllDescendantIds,
   getDescendantHierarchy,
   getImmediateChildren,
+  type MindNodeDirection,
 } from "./mindNodeEngine";
 import "./MindNodeManager.scss";
 
@@ -75,9 +76,9 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       const centerY = -appState.scrollY + appState.height / (2 * zoom);
 
       const { rect, text } = createMindNodeElement(
-        centerX - 80,
+        centerX - 75,
         centerY - 24,
-        "Central Topic",
+        "",
         themeId,
         "root",
         null,
@@ -94,9 +95,9 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     [excalidrawAPI, activeThemeId],
   );
 
-  // Add Child Node
+  // Add Child Node in any of the 4 directions (right, left, top, bottom)
   const handleAddChildNode = useCallback(
-    (parentNode: ExcalidrawElement) => {
+    (parentNode: ExcalidrawElement, direction: MindNodeDirection = "right") => {
       if (!excalidrawAPI) return;
 
       const elements = excalidrawAPI.getSceneElements();
@@ -104,34 +105,44 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       const parentTheme =
         MINDNODE_THEMES.find((t) => t.id === parentThemeId) || MINDNODE_THEMES[0];
 
-      // Existing children to determine vertical placement and child index
+      // Existing children in the same direction
       const existingChildren = elements.filter(
         (el) =>
           !el.isDeleted &&
           el.customData?.isMindNode &&
-          el.customData?.parentId === parentNode.id,
+          el.customData?.parentId === parentNode.id &&
+          (el.customData?.direction || "right") === direction,
       );
 
       const childIndex = existingChildren.length + 1;
-      const childX =
-        parentNode.x + parentNode.width + MINDNODE_CONSTANTS.HORIZONTAL_SPACING;
-      const childY =
-        parentNode.y +
-        (childIndex - 1) * (MINDNODE_CONSTANTS.MIN_NODE_HEIGHT + MINDNODE_CONSTANTS.VERTICAL_SPACING);
+      let childX = parentNode.x + parentNode.width + MINDNODE_CONSTANTS.HORIZONTAL_SPACING;
+      let childY = parentNode.y;
+
+      if (direction === "left") {
+        childX = parentNode.x - MINDNODE_CONSTANTS.MIN_NODE_WIDTH - MINDNODE_CONSTANTS.HORIZONTAL_SPACING;
+        childY = parentNode.y;
+      } else if (direction === "top") {
+        childX = parentNode.x;
+        childY = parentNode.y - MINDNODE_CONSTANTS.MIN_NODE_HEIGHT - 90;
+      } else if (direction === "bottom") {
+        childX = parentNode.x;
+        childY = parentNode.y + parentNode.height + 90;
+      }
 
       const { rect: childRect, text: childText } = createMindNodeElement(
         childX,
         childY,
-        `Subtopic ${childIndex}`,
+        "",
         parentThemeId,
         "child",
         parentNode.id,
         childIndex,
+        direction,
       );
 
-      const branch = createMindNodeBranch(parentNode, childRect, parentTheme.stroke);
+      const branch = createMindNodeBranch(parentNode, childRect, parentTheme.stroke, direction);
 
-      // Re-layout parent and all siblings
+      // Re-layout parent and all directional siblings
       const updatedElements = [...elements, childRect, childText, branch];
       const layoutUpdates = autoLayoutMindNodeSubtree(parentNode.id, updatedElements);
 
@@ -153,17 +164,36 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
           const cId = el.customData?.childId;
           const child = finalElements.find((e) => e.id === cId);
           if (child) {
-            const startX = parentNode.x + parentNode.width;
-            const startY = parentNode.y + parentNode.height / 2;
-            const endX = child.x;
-            const endY = child.y + child.height / 2;
-            const points = calculateOrganicBranchPoints(startX, startY, endX, endY);
+            const dir: MindNodeDirection = el.customData?.direction || child.customData?.direction || "right";
+            let startX = parentNode.x + parentNode.width;
+            let startY = parentNode.y + parentNode.height / 2;
+            let endX = child.x;
+            let endY = child.y + child.height / 2;
+
+            if (dir === "left") {
+              startX = parentNode.x;
+              startY = parentNode.y + parentNode.height / 2;
+              endX = child.x + child.width;
+              endY = child.y + child.height / 2;
+            } else if (dir === "top") {
+              startX = parentNode.x + parentNode.width / 2;
+              startY = parentNode.y;
+              endX = child.x + child.width / 2;
+              endY = child.y + child.height;
+            } else if (dir === "bottom") {
+              startX = parentNode.x + parentNode.width / 2;
+              startY = parentNode.y + parentNode.height;
+              endX = child.x + child.width / 2;
+              endY = child.y;
+            }
+
+            const points = calculateOrganicBranchPoints(startX, startY, endX, endY, dir);
             return {
               ...el,
               x: startX,
               y: startY,
-              width: Math.abs(endX - startX),
-              height: Math.abs(endY - startY),
+              width: Math.abs(endX - startX) || 1,
+              height: Math.abs(endY - startY) || 1,
               points: points as any,
             };
           }
@@ -190,41 +220,6 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       });
     },
     [excalidrawAPI, activeThemeId],
-  );
-
-  // Add Sibling Node
-  const handleAddSiblingNode = useCallback(
-    (currentNode: ExcalidrawElement) => {
-      if (!excalidrawAPI) return;
-      const parentId = currentNode.customData?.parentId;
-      const elements = excalidrawAPI.getSceneElements();
-
-      if (parentId) {
-        const parentNode = elements.find((e) => e.id === parentId);
-        if (parentNode) {
-          handleAddChildNode(parentNode);
-          return;
-        }
-      }
-
-      // If current is root, spawn a new sibling root node
-      const { rect, text } = createMindNodeElement(
-        currentNode.x,
-        currentNode.y + currentNode.height + 60,
-        "New Idea",
-        activeThemeId,
-        "root",
-        null,
-      );
-
-      excalidrawAPI.updateScene({
-        elements: [...elements, rect, text],
-        appState: {
-          selectedElementIds: { [rect.id]: true },
-        },
-      });
-    },
-    [excalidrawAPI, handleAddChildNode, activeThemeId],
   );
 
   // Toggle Collapse / Expand with One-by-One Sequential Animation
@@ -571,7 +566,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     [selectedMindNode, excalidrawAPI],
   );
 
-  // Keyboard navigation hook for Tab (child) and Enter (sibling)
+  // Keyboard navigation hook for Tab (child right)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!selectedMindNode || !excalidrawAPI) return;
@@ -583,11 +578,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       if (e.key === "Tab") {
         e.preventDefault();
         e.stopPropagation();
-        handleAddChildNode(selectedMindNode);
-      } else if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleAddSiblingNode(selectedMindNode);
+        handleAddChildNode(selectedMindNode, "right");
       }
     };
 
@@ -595,9 +586,9 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     return () => {
       window.removeEventListener("keydown", handleKeyDown, true);
     };
-  }, [selectedMindNode, excalidrawAPI, handleAddChildNode, handleAddSiblingNode]);
+  }, [selectedMindNode, excalidrawAPI, handleAddChildNode]);
 
-  // Compute viewport position of selected mindnode for floating handle button overlays
+  // Compute viewport position of selected mindnode for floating handle button overlays in 4 directions
   const getSelectedNodeOverlayCoords = () => {
     if (!selectedMindNode || !excalidrawAPI) return null;
     const appState = excalidrawAPI.getAppState();
@@ -609,10 +600,16 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     const screenH = selectedMindNode.height * zoom;
 
     return {
-      // Add Child handle (+) at right edge
+      // Right handle (→)
       rightX: screenX + screenW + 8,
-      centerY: screenY + screenH / 2 - 14,
-      // Add Sibling handle (+) at bottom edge
+      rightY: screenY + screenH / 2 - 14,
+      // Left handle (←)
+      leftX: screenX - 36,
+      leftY: screenY + screenH / 2 - 14,
+      // Top handle (↑)
+      topX: screenX + screenW / 2 - 14,
+      topY: screenY - 36,
+      // Bottom handle (↓)
       bottomX: screenX + screenW / 2 - 14,
       bottomY: screenY + screenH + 8,
       // Collapse / Expand toggle handle at far right of child handle
@@ -661,7 +658,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             setIsMindNodeModeActive(!isMindNodeModeActive);
             handleAddRootNode();
           }}
-          title="Create MindNode Mind Map (Click or Tab/Enter)"
+          title="Create MindNode Mind Map"
         >
           <span className="mindnode-icon">🧠</span>
           <span className="mindnode-label">MindMap</span>
@@ -713,37 +710,69 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         </div>
       </div>
 
-      {/* Floating Interactive Node Handles */}
+      {/* Floating Interactive 4-Directional Node Handles */}
       {selectedMindNode && overlayCoords && (
         <div className="mindnode-floating-overlay">
-          {/* Add Child Handle (+) */}
+          {/* Add Child Right (+) */}
           <button
-            className="mindnode-handle-btn plus-child"
+            className="mindnode-handle-btn plus-dir plus-right"
             style={{
               left: `${overlayCoords.rightX}px`,
-              top: `${overlayCoords.centerY}px`,
+              top: `${overlayCoords.rightY}px`,
             }}
             onClick={(e) => {
               e.stopPropagation();
-              handleAddChildNode(selectedMindNode);
+              handleAddChildNode(selectedMindNode, "right");
             }}
-            title="Add Child Node (Tab)"
+            title="Expand Right (Tab)"
           >
             +
           </button>
 
-          {/* Add Sibling Handle (+) */}
+          {/* Add Child Left (+) */}
           <button
-            className="mindnode-handle-btn plus-sibling"
+            className="mindnode-handle-btn plus-dir plus-left"
+            style={{
+              left: `${overlayCoords.leftX}px`,
+              top: `${overlayCoords.leftY}px`,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddChildNode(selectedMindNode, "left");
+            }}
+            title="Expand Left"
+          >
+            +
+          </button>
+
+          {/* Add Child Top (+) */}
+          <button
+            className="mindnode-handle-btn plus-dir plus-top"
+            style={{
+              left: `${overlayCoords.topX}px`,
+              top: `${overlayCoords.topY}px`,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddChildNode(selectedMindNode, "top");
+            }}
+            title="Expand Top"
+          >
+            +
+          </button>
+
+          {/* Add Child Bottom (+) */}
+          <button
+            className="mindnode-handle-btn plus-dir plus-bottom"
             style={{
               left: `${overlayCoords.bottomX}px`,
               top: `${overlayCoords.bottomY}px`,
             }}
             onClick={(e) => {
               e.stopPropagation();
-              handleAddSiblingNode(selectedMindNode);
+              handleAddChildNode(selectedMindNode, "bottom");
             }}
-            title="Add Sibling Node (Enter)"
+            title="Expand Bottom"
           >
             +
           </button>
