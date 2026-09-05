@@ -97,7 +97,11 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
 
   // Add Child Node in any of the 4 directions (right, left, top, bottom)
   const handleAddChildNode = useCallback(
-    (parentNode: ExcalidrawElement, direction: MindNodeDirection = "right") => {
+    (
+      parentNode: ExcalidrawElement,
+      direction: MindNodeDirection = "right",
+      keepParentSelected = false,
+    ) => {
       if (!excalidrawAPI) return;
 
       const elements = excalidrawAPI.getSceneElements();
@@ -160,29 +164,31 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
 
       // Update branch connector endpoints to match newly calculated coordinates
       const branchSyncedElements = finalElements.map((el) => {
-        if (el.customData?.isMindNodeBranch && el.customData?.parentId === parentNode.id) {
+        if (el.customData?.isMindNodeBranch) {
+          const pId = el.customData?.parentId;
           const cId = el.customData?.childId;
+          const pNode = finalElements.find((e) => e.id === pId);
           const child = finalElements.find((e) => e.id === cId);
-          if (child) {
+          if (pNode && child) {
             const dir: MindNodeDirection = el.customData?.direction || child.customData?.direction || "right";
-            let startX = parentNode.x + parentNode.width;
-            let startY = parentNode.y + parentNode.height / 2;
+            let startX = pNode.x + pNode.width;
+            let startY = pNode.y + pNode.height / 2;
             let endX = child.x;
             let endY = child.y + child.height / 2;
 
             if (dir === "left") {
-              startX = parentNode.x;
-              startY = parentNode.y + parentNode.height / 2;
+              startX = pNode.x;
+              startY = pNode.y + pNode.height / 2;
               endX = child.x + child.width;
               endY = child.y + child.height / 2;
             } else if (dir === "top") {
-              startX = parentNode.x + parentNode.width / 2;
-              startY = parentNode.y;
+              startX = pNode.x + pNode.width / 2;
+              startY = pNode.y;
               endX = child.x + child.width / 2;
               endY = child.y + child.height;
             } else if (dir === "bottom") {
-              startX = parentNode.x + parentNode.width / 2;
-              startY = parentNode.y + parentNode.height;
+              startX = pNode.x + pNode.width / 2;
+              startY = pNode.y + pNode.height;
               endX = child.x + child.width / 2;
               endY = child.y;
             }
@@ -215,7 +221,9 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       excalidrawAPI.updateScene({
         elements: branchSyncedElements as readonly ExcalidrawElement[],
         appState: {
-          selectedElementIds: { [childRect.id]: true },
+          selectedElementIds: keepParentSelected
+            ? { [parentNode.id]: true }
+            : { [childRect.id]: true },
         },
       });
     },
@@ -840,7 +848,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             }}
             onClick={(e) => {
               e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "top");
+              handleAddChildNode(selectedMindNode, "top", true);
             }}
             title="Add Multiple Children (Top)"
           >
@@ -856,7 +864,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             }}
             onClick={(e) => {
               e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "right");
+              handleAddChildNode(selectedMindNode, "right", true);
             }}
             title="Add Multiple Children (Right)"
           >
@@ -872,7 +880,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             }}
             onClick={(e) => {
               e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "bottom");
+              handleAddChildNode(selectedMindNode, "bottom", true);
             }}
             title="Add Multiple Children (Bottom)"
           >
@@ -888,7 +896,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             }}
             onClick={(e) => {
               e.stopPropagation();
-              handleAddChildNode(selectedMindNode, "left");
+              handleAddChildNode(selectedMindNode, "left", true);
             }}
             title="Add Multiple Children (Left)"
           >
