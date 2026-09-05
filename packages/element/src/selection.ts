@@ -31,7 +31,10 @@ import type {
 } from "./types";
 
 const shouldIgnoreElementFromSelection = (element: ExcalidrawElement) =>
-  element.locked || isBoundToContainer(element);
+  element.locked ||
+  isBoundToContainer(element) ||
+  element.opacity === 0 ||
+  !!element.customData?.hiddenByCollapse;
 
 const excludeElementsFromFrames = <T extends ExcalidrawElement>(
   selectedElements: readonly T[],
@@ -171,10 +174,14 @@ export const getSelectedElements = (
   const selectedElements: NonDeletedExcalidrawElement[] = [];
   for (const element of elements.values()) {
     if (appState.selectedElementIds[element.id]) {
-      if (isNonDeletedElement(element)) {
+      if (
+        isNonDeletedElement(element) &&
+        element.opacity !== 0 &&
+        !element.customData?.hiddenByCollapse
+      ) {
         selectedElements.push(element as NonDeletedExcalidrawElement);
         addedElements.add(element.id);
-      } else {
+      } else if (!isNonDeletedElement(element)) {
         console.error(
           "[NONDELETED][INVARIANT] getSelectedElements skipping deleted selected element which should not be in the selection",
         );
@@ -185,6 +192,8 @@ export const getSelectedElements = (
       opts?.includeBoundTextElement &&
       isBoundToContainer(element) &&
       isNonDeletedElement(element) &&
+      element.opacity !== 0 &&
+      !element.customData?.hiddenByCollapse &&
       appState.selectedElementIds[element?.containerId]
     ) {
       selectedElements.push(element as NonDeletedExcalidrawElement);
@@ -200,6 +209,8 @@ export const getSelectedElements = (
         getFrameChildren(elements, element.id).forEach(
           (e) =>
             !addedElements.has(e.id) &&
+            e.opacity !== 0 &&
+            !e.customData?.hiddenByCollapse &&
             elementsToInclude.push(e as NonDeletedExcalidrawElement),
         );
       }

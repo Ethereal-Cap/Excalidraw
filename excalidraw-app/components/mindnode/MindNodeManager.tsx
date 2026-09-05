@@ -594,7 +594,22 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
           return el;
         });
 
-        excalidrawAPI.updateScene({ elements: updatedElements });
+        const currentAppState = excalidrawAPI.getAppState();
+        const cleanedSelectedElementIds = { ...currentAppState.selectedElementIds };
+        let selectionChanged = false;
+        for (const hiddenId of hideSet) {
+          if (cleanedSelectedElementIds[hiddenId]) {
+            delete cleanedSelectedElementIds[hiddenId];
+            selectionChanged = true;
+          }
+        }
+
+        excalidrawAPI.updateScene({
+          elements: updatedElements,
+          appState: selectionChanged
+            ? { selectedElementIds: cleanedSelectedElementIds }
+            : undefined,
+        });
         setSelectedMindNode((prev) =>
           prev && prev.id === node.id
             ? { ...prev, customData: { ...prev.customData, collapsed: true } }

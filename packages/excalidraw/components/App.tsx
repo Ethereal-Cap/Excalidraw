@@ -6499,7 +6499,12 @@ class App extends React.Component<AppProps, AppState> {
                   !(isTextElement(element) && element.containerId)),
             )
     )
-      .filter((el) => this.hitElement(x, y, el))
+      .filter(
+        (el) =>
+          el.opacity !== 0 &&
+          !el.customData?.hiddenByCollapse &&
+          this.hitElement(x, y, el),
+      )
       .filter((element) => {
         // hitting a frame's element from outside the frame is not considered a hit
         const containingFrame = getContainingFrame(element, elementsMap);
