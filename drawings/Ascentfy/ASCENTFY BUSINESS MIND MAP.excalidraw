@@ -9186,7 +9186,10 @@
     "contextMenu": null,
     "openMenu": null,
     "openPopup": null,
-    "openSidebar": null,
+    "openSidebar": {
+      "name": "default",
+      "tab": "github"
+    },
     "openDialog": null,
     "previousSelectedElementIds": {},
     "resizingElement": null,
