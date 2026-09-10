@@ -87,6 +87,7 @@ export interface MindNodeGlobalStyles {
   themeId?: string;
   customTheme?: MindNodeTheme;
   fontSize?: number; // 14, 16, 20, 24
+  fontFamily?: number; // 5 (Excalifont / Hand-drawn), 6 (Nunito / Normal), 8 (Comic Shanns / Code)
   roughness?: number; // 0 (architect), 1 (artist), 2 (cartoonist)
   roundness?: number; // 1 (sharp), 2 (round), 3 (pill)
   textAlign?: "left" | "center" | "right";

@@ -119,6 +119,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       const centerX = -appState.scrollX + appState.width / (2 * zoom);
       const centerY = -appState.scrollY + appState.height / (2 * zoom);
 
+      const globalStyles = getSavedGlobalStyles();
       const { rect, text } = createMindNodeElement(
         centerX - 75,
         centerY - 24,
@@ -128,7 +129,15 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         null,
         1,
         "right",
-        { layoutMode },
+        {
+          layoutMode,
+          fontFamily: globalStyles.fontFamily ?? 5,
+          fontSize: globalStyles.fontSize ?? 18,
+          textAlign: globalStyles.textAlign ?? "center",
+          roughness: globalStyles.roughness ?? 0,
+          roundness: globalStyles.roundness ?? 3,
+          opacity: globalStyles.opacity ?? 100,
+        },
       );
 
       const currentElements = excalidrawAPI.getSceneElements();
@@ -161,6 +170,8 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         (e) => !e.isDeleted && e.customData?.isMindNodeText && e.customData?.nodeId === parentNode.id,
       ) as any;
 
+      const globalStyles = getSavedGlobalStyles();
+
       // Inherit parent's exact formatting and colors
       const styleOverrides = {
         backgroundColor: parentNode.backgroundColor,
@@ -170,7 +181,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         roundness: (parentNode.roundness as any)?.type ?? 3,
         opacity: parentNode.opacity,
         fontSize: parentText?.fontSize ?? 15,
-        fontFamily: parentText?.fontFamily ?? 2,
+        fontFamily: parentText?.fontFamily ?? globalStyles.fontFamily ?? 5,
         textAlign: parentText?.textAlign || "center",
         layoutMode: parentLayoutMode,
       };
@@ -541,6 +552,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             ...el,
             ...(theme ? { strokeColor: theme.text } : {}),
             ...(styles.fontSize ? { fontSize: styles.fontSize } : {}),
+            ...(styles.fontFamily ? { fontFamily: styles.fontFamily } : {}),
             ...(styles.textAlign ? { textAlign: styles.textAlign } : {}),
             ...(styles.opacity !== undefined ? { opacity: styles.opacity } : {}),
           };

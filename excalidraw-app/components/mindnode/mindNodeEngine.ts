@@ -120,7 +120,7 @@ export const createMindNodeElement = (
   const roundness = styleOverrides?.roundness ?? 3;
   const opacity = styleOverrides?.opacity ?? 100;
   const textAlign = styleOverrides?.textAlign || "center";
-  const fontFamily = styleOverrides?.fontFamily || 2;
+  const fontFamily = styleOverrides?.fontFamily || 5;
   const layoutMode = styleOverrides?.layoutMode || "organic";
 
   const rect = newElement({

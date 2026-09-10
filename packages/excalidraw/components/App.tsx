@@ -6728,7 +6728,13 @@ class App extends React.Component<AppProps, AppState> {
     // one — and bind the arrow to that instead.
     const existingTextElement = arrowEndpointBinding
       ? null
-      : this.getSelectedTextElement(container) ||
+      : (container
+          ? (getBoundTextElement(
+              container,
+              this.scene.getNonDeletedElementsMap(),
+            ) as NonDeleted<ExcalidrawTextElement> | null)
+          : null) ||
+        this.getSelectedTextElement(container) ||
         this.getTextElementAtPosition(sceneX, sceneY);
 
     const fontFamily =

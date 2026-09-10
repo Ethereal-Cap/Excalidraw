@@ -37,6 +37,7 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
   const [customStroke, setCustomStroke] = useState<string>("#bbf7d0");
   const [customText, setCustomText] = useState<string>("#14532d");
   const [fontSize, setFontSize] = useState<number>(15);
+  const [fontFamily, setFontFamily] = useState<number>(5);
   const [roughness, setRoughness] = useState<number>(0);
   const [roundness, setRoundness] = useState<number>(3);
   const [textAlign, setTextAlign] = useState<"left" | "center" | "right">("center");
@@ -61,6 +62,7 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
 
     const savedStyles = getSavedGlobalStyles();
     if (savedStyles.fontSize) setFontSize(savedStyles.fontSize);
+    if (savedStyles.fontFamily) setFontFamily(savedStyles.fontFamily);
     if (savedStyles.roughness !== undefined) setRoughness(savedStyles.roughness);
     if (savedStyles.roundness !== undefined) setRoundness(savedStyles.roundness);
     if (savedStyles.textAlign) setTextAlign(savedStyles.textAlign);
@@ -148,6 +150,7 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
       themeId: selectedThemeId,
       customTheme: currentTheme,
       fontSize,
+      fontFamily,
       roughness,
       roundness,
       textAlign,
@@ -311,7 +314,26 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Section: Font Size & Text Align */}
+          {/* Section: Font Family, Font Size & Text Align */}
+          <div className="setting-section" style={{ marginBottom: "14px" }}>
+            <label className="section-label">✍️ Font Family</label>
+            <div className="button-group">
+              {[
+                { label: "✏️ Hand-drawn (Excalifont)", val: 5 },
+                { label: "🔤 Normal (Nunito)", val: 6 },
+                { label: "💻 Code (Comic Shanns)", val: 8 },
+              ].map((item) => (
+                <button
+                  key={item.val}
+                  className={`btn-toggle ${fontFamily === item.val ? "active" : ""}`}
+                  onClick={() => setFontFamily(item.val)}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="setting-grid-2col">
             <div className="setting-section">
               <label className="section-label">🔤 Font Size</label>
