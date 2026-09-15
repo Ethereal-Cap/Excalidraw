@@ -82,6 +82,7 @@ export default defineConfig({
     setupFiles: ["./setupTests.ts"],
     globals: true,
     environment: "jsdom",
+    exclude: ["**/node_modules/**", "**/dist/**", "**/backup/**", "**/.{idea,git,cache,output,temp}/**"],
     // don't list skipped tests in the failure tree — keeps output readable
     hideSkippedTests: true,
     coverage: {
