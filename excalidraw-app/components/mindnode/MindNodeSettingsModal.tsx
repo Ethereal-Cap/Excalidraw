@@ -17,8 +17,10 @@ interface MindNodeSettingsModalProps {
   activeThemeId: string;
   onSelectTheme: (themeId: string) => void;
   onApplyGlobalStyles: (styles: MindNodeGlobalStyles) => void;
+  onApplySubtreeStyles?: (styles: MindNodeGlobalStyles) => void;
   currentLayoutMode: "organic" | "threaded";
   onChangeLayoutMode: (mode: "organic" | "threaded") => void;
+  hasSelectedNode?: boolean;
 }
 
 export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
@@ -27,8 +29,10 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
   activeThemeId,
   onSelectTheme,
   onApplyGlobalStyles,
+  onApplySubtreeStyles,
   currentLayoutMode,
   onChangeLayoutMode,
+  hasSelectedNode = false,
 }) => {
   const [themesList, setThemesList] = useState<MindNodeTheme[]>([]);
   const [selectedThemeId, setSelectedThemeId] = useState<string>(activeThemeId);
@@ -168,6 +172,35 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
     onClose();
   };
 
+  const handleApplySubtree = () => {
+    const currentTheme: MindNodeTheme = {
+      id: selectedThemeId,
+      name: themeName,
+      bg: customBg,
+      stroke: customStroke,
+      text: customText,
+      badgeBg: customStroke,
+      badgeText: customText,
+    };
+
+    const styles: MindNodeGlobalStyles = {
+      themeId: selectedThemeId,
+      customTheme: currentTheme,
+      fontSize,
+      fontFamily,
+      roughness,
+      roundness,
+      textAlign,
+      opacity,
+      layoutMode,
+    };
+
+    if (onApplySubtreeStyles) {
+      onApplySubtreeStyles(styles);
+    }
+    onClose();
+  };
+
   const isBuiltInTheme = ["mint", "cyan", "rose", "lavender", "amber", "coral"].includes(selectedThemeId);
 
   return (
@@ -186,7 +219,7 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
         <div className="mindnode-modal-body">
           {/* Section: Layout Mode */}
           <div className="setting-section">
-            <label className="section-label">📐 Layout Style (Per Mind Map)</label>
+            <label className="section-label">📐 Layout Style (Per Mind Map / Branch)</label>
             <div className="segmented-control">
               <button
                 className={`segment-btn ${layoutMode === "organic" ? "active" : ""}`}
@@ -249,134 +282,134 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
             {/* Selected Theme Color Editor */}
             <div className="custom-color-editor-box">
               <div className="theme-name-row">
-                <label>Palette Name:</label>
+                <span>Palette Name:</span>
                 <input
                   type="text"
                   value={themeName}
                   onChange={(e) => setThemeName(e.target.value)}
-                  placeholder="Palette Name"
                   className="theme-name-input"
+                  placeholder="e.g. Neon Horizon"
                 />
-              </div>
-
-              <div className="custom-color-pickers">
-                <div className="color-field">
-                  <span>Fill:</span>
-                  <input
-                    type="color"
-                    value={customBg}
-                    onChange={(e) => setCustomBg(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    value={customBg}
-                    className="hex-input"
-                    onChange={(e) => setCustomBg(e.target.value)}
-                  />
-                </div>
-
-                <div className="color-field">
-                  <span>Border & Branch:</span>
-                  <input
-                    type="color"
-                    value={customStroke}
-                    onChange={(e) => setCustomStroke(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    value={customStroke}
-                    className="hex-input"
-                    onChange={(e) => setCustomStroke(e.target.value)}
-                  />
-                </div>
-
-                <div className="color-field">
-                  <span>Text:</span>
-                  <input
-                    type="color"
-                    value={customText}
-                    onChange={(e) => setCustomText(e.target.value)}
-                  />
-                  <input
-                    type="text"
-                    value={customText}
-                    className="hex-input"
-                    onChange={(e) => setCustomText(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="editor-actions-row">
-                <button className="btn-save-preset" onClick={handleSaveCurrentTheme}>
-                  💾 Save Palette ({themeName})
+                <button className="btn-save-theme" onClick={handleSaveCurrentTheme} title="Save Color Changes">
+                  💾 Save Palette
                 </button>
               </div>
-            </div>
-          </div>
 
-          {/* Section: Font Family, Font Size & Text Align */}
-          <div className="setting-section" style={{ marginBottom: "14px" }}>
-            <label className="section-label">✍️ Font Family</label>
-            <div className="button-group">
-              {[
-                { label: "✏️ Hand-drawn (Excalifont)", val: 5 },
-                { label: "🔤 Normal (Nunito)", val: 6 },
-                { label: "💻 Code (Comic Shanns)", val: 8 },
-              ].map((item) => (
-                <button
-                  key={item.val}
-                  className={`btn-toggle ${fontFamily === item.val ? "active" : ""}`}
-                  onClick={() => setFontFamily(item.val)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
+              <div className="color-inputs-row">
+                <div className="color-field">
+                  <label>Background Fill</label>
+                  <div className="picker-wrapper">
+                    <input
+                      type="color"
+                      value={customBg}
+                      onChange={(e) => setCustomBg(e.target.value)}
+                      className="native-color-picker"
+                    />
+                    <input
+                      type="text"
+                      value={customBg}
+                      onChange={(e) => setCustomBg(e.target.value)}
+                      className="hex-input"
+                    />
+                  </div>
+                </div>
 
-          <div className="setting-grid-2col">
-            <div className="setting-section">
-              <label className="section-label">🔤 Font Size</label>
-              <div className="button-group">
-                {[
-                  { label: "S (14px)", val: 14 },
-                  { label: "M (16px)", val: 16 },
-                  { label: "L (20px)", val: 20 },
-                  { label: "XL (24px)", val: 24 },
-                ].map((item) => (
-                  <button
-                    key={item.val}
-                    className={`btn-toggle ${fontSize === item.val ? "active" : ""}`}
-                    onClick={() => setFontSize(item.val)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+                <div className="color-field">
+                  <label>Border / Stroke</label>
+                  <div className="picker-wrapper">
+                    <input
+                      type="color"
+                      value={customStroke}
+                      onChange={(e) => setCustomStroke(e.target.value)}
+                      className="native-color-picker"
+                    />
+                    <input
+                      type="text"
+                      value={customStroke}
+                      onChange={(e) => setCustomStroke(e.target.value)}
+                      className="hex-input"
+                    />
+                  </div>
+                </div>
 
-            <div className="setting-section">
-              <label className="section-label">↔️ Text Alignment</label>
-              <div className="button-group">
-                {[
-                  { label: "⬅️ Left", val: "left" as const },
-                  { label: "⏺️ Center", val: "center" as const },
-                  { label: "➡️ Right", val: "right" as const },
-                ].map((item) => (
-                  <button
-                    key={item.val}
-                    className={`btn-toggle ${textAlign === item.val ? "active" : ""}`}
-                    onClick={() => setTextAlign(item.val)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+                <div className="color-field">
+                  <label>Text Color</label>
+                  <div className="picker-wrapper">
+                    <input
+                      type="color"
+                      value={customText}
+                      onChange={(e) => setCustomText(e.target.value)}
+                      className="native-color-picker"
+                    />
+                    <input
+                      type="text"
+                      value={customText}
+                      onChange={(e) => setCustomText(e.target.value)}
+                      className="hex-input"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Section: Sloppiness (Roughness) & Edges (Roundness) */}
-          <div className="setting-grid-2col">
+          {/* Section: Typography & Styling */}
+          <div className="setting-section">
+            <label className="section-label">✍️ Typography</label>
+            <div className="typography-row">
+              <div className="setting-sub-group">
+                <span className="sub-label">Font Family</span>
+                <div className="button-group">
+                  {[
+                    { label: "Handwritten", val: 5 },
+                    { label: "Normal", val: 6 },
+                    { label: "Code", val: 8 },
+                  ].map((f) => (
+                    <button
+                      key={f.val}
+                      className={`btn-toggle ${fontFamily === f.val ? "active" : ""}`}
+                      onClick={() => setFontFamily(f.val)}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="setting-sub-group">
+                <span className="sub-label">Font Size</span>
+                <div className="button-group">
+                  {[14, 16, 18, 22].map((sz) => (
+                    <button
+                      key={sz}
+                      className={`btn-toggle ${fontSize === sz ? "active" : ""}`}
+                      onClick={() => setFontSize(sz)}
+                    >
+                      {sz}px
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="setting-sub-group">
+                <span className="sub-label">Text Alignment</span>
+                <div className="button-group">
+                  {(["left", "center", "right"] as const).map((al) => (
+                    <button
+                      key={al}
+                      className={`btn-toggle ${textAlign === al ? "active" : ""}`}
+                      onClick={() => setTextAlign(al)}
+                    >
+                      {al === "left" ? "⬅️" : al === "center" ? "↔️" : "➡️"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Roughness & Edges */}
+          <div className="settings-split-row">
             <div className="setting-section">
               <label className="section-label">〰️ Sloppiness (Roughness)</label>
               <div className="button-group">
@@ -439,7 +472,20 @@ export const MindNodeSettingsModal: React.FC<MindNodeSettingsModalProps> = ({
           <button className="btn-cancel" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn-primary" onClick={handleApply}>
+          {hasSelectedNode && (
+            <button
+              className="btn-subtree"
+              onClick={handleApplySubtree}
+              title="Apply these colors & layout only to the selected node and all its child branches"
+            >
+              🌿 Apply to This Node & Sub-Children
+            </button>
+          )}
+          <button
+            className="btn-primary"
+            onClick={handleApply}
+            title="Apply these styles across the entire selected mind map from root to leaves"
+          >
             ⚡ Apply to Selected Mind Map
           </button>
         </div>

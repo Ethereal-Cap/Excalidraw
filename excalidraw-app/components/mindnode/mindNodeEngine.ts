@@ -375,6 +375,70 @@ export const getAllDescendantIds = (
 };
 
 /**
+ * Recursively retrieves descendant IDs originating from immediate children in a specific direction (right, left, top, bottom)
+ */
+export const getDescendantIdsByDirection = (
+  parentNodeId: string,
+  direction: MindNodeDirection,
+  elements: readonly ExcalidrawElement[],
+): {
+  nodeIds: string[];
+  textIds: string[];
+  branchIds: string[];
+  imageIds: string[];
+} => {
+  const nodeIds: string[] = [];
+  const textIds: string[] = [];
+  const branchIds: string[] = [];
+  const imageIds: string[] = [];
+
+  // Find immediate children in the specified direction
+  const immediateChildren = elements.filter(
+    (el) =>
+      !el.isDeleted &&
+      el.customData?.isMindNode &&
+      el.customData?.parentId === parentNodeId &&
+      (el.customData?.direction || "right") === direction,
+  );
+
+  const immediateBranches = elements.filter(
+    (el) =>
+      !el.isDeleted &&
+      el.customData?.isMindNodeBranch &&
+      el.customData?.parentId === parentNodeId &&
+      (el.customData?.direction || "right") === direction,
+  );
+
+  for (const b of immediateBranches) {
+    branchIds.push(b.id);
+  }
+
+  for (const child of immediateChildren) {
+    nodeIds.push(child.id);
+    const subDescendants = getAllDescendantIds(child.id, elements);
+    nodeIds.push(...subDescendants.nodeIds);
+    textIds.push(...subDescendants.textIds);
+    branchIds.push(...subDescendants.branchIds);
+    imageIds.push(...subDescendants.imageIds);
+  }
+
+  // Also collect text elements for immediate children
+  for (const el of elements) {
+    if (
+      !el.isDeleted &&
+      el.customData?.isMindNodeText &&
+      immediateChildren.some((c) => c.id === el.customData?.nodeId)
+    ) {
+      if (!textIds.includes(el.id)) {
+        textIds.push(el.id);
+      }
+    }
+  }
+
+  return { nodeIds, textIds, branchIds, imageIds };
+};
+
+/**
  * Returns immediate children nodes of a given parent
  */
 export const getImmediateChildren = (
@@ -524,6 +588,7 @@ export const createThreadedBranch = (
 export const autoLayoutThreadedSubtree = (
   rootNodeId: string,
   elements: readonly ExcalidrawElement[],
+  scoped: boolean = false,
 ): { [id: string]: { x: number; y: number } } => {
   const elementsMap = new Map(elements.map((el) => [el.id, el]));
   const root = elementsMap.get(rootNodeId);
@@ -566,7 +631,26 @@ export const autoLayoutThreadedSubtree = (
     return nextY;
   };
 
-  // If rootNode is a child node, find its top-level root ancestor
+  // When scoped is requested or root is a child node (has parentId),
+  // keep root in place and only layout its children indented below it.
+  if (scoped || root.customData?.parentId) {
+    const children = elements.filter(
+      (el) =>
+        !el.isDeleted &&
+        el.customData?.isMindNode &&
+        el.customData?.parentId === root.id,
+    );
+    if (children.length > 0) {
+      children.sort((a, b) => (a.customData?.order ?? a.y) - (b.customData?.order ?? b.y));
+      let nextY = root.y + root.height + GAP_Y;
+      for (const child of children) {
+        nextY = layoutNodeAndDescendants(child.id, root.x + INDENT_X, nextY);
+      }
+    }
+    return updates;
+  }
+
+  // Full tree layout from topRootId
   let topRootId = rootNodeId;
   let curr = root;
   while (curr && curr.customData?.parentId) {

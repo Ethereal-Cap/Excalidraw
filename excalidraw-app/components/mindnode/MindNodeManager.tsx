@@ -18,6 +18,7 @@ import {
   autoLayoutThreadedSubtree,
   calculateOrganicBranchPoints,
   getAllDescendantIds,
+  getDescendantIdsByDirection,
   getDescendantHierarchy,
   getImmediateChildren,
   type MindNodeDirection,
@@ -345,75 +346,82 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
 
       const currentElements = excalidrawAPI.getSceneElements();
 
-      // If a node is selected, find its top root and only update that tree!
-      let targetRootIds: string[] = [];
+      // If a node is selected:
+      // If it's a child node, apply layoutMode only to this node and its descendants!
+      // If it's a root node, apply to the root tree.
+      let targetRootId: string;
+      let targetNodeIdSet: Set<string>;
+
       if (selectedMindNode) {
-        let topRootId = selectedMindNode.id;
-        const elementsMap = new Map(currentElements.map((el) => [el.id, el]));
-        let curr = selectedMindNode;
-        while (curr && curr.customData?.parentId) {
-          const p = elementsMap.get(curr.customData.parentId);
-          if (p) {
-            curr = p;
-            topRootId = p.id;
-          } else {
-            break;
-          }
+        if (selectedMindNode.customData?.nodeType === "child") {
+          targetRootId = selectedMindNode.id;
+          const { nodeIds } = getAllDescendantIds(selectedMindNode.id, currentElements);
+          targetNodeIdSet = new Set([selectedMindNode.id, ...nodeIds]);
+        } else {
+          targetRootId = selectedMindNode.id;
+          const { nodeIds } = getAllDescendantIds(selectedMindNode.id, currentElements);
+          targetNodeIdSet = new Set([selectedMindNode.id, ...nodeIds]);
         }
-        targetRootIds = [topRootId];
       } else {
         // No node selected: Just updates layoutMode state for new mind maps
         return;
       }
 
       let workingElements = [...currentElements];
+      const root = workingElements.find((e) => e.id === targetRootId);
+      if (!root) return;
 
-      for (const rootId of targetRootIds) {
-        const root = workingElements.find((e) => e.id === rootId);
-        if (!root) continue;
+      // Tag all nodes in this specific target set with newMode
+      workingElements = workingElements.map((el) => {
+        if (el.customData?.isMindNode && targetNodeIdSet.has(el.id)) {
+          return {
+            ...el,
+            customData: {
+              ...el.customData,
+              layoutMode: newMode,
+            },
+          };
+        }
+        return el;
+      });
 
-        const { nodeIds } = getAllDescendantIds(rootId, workingElements);
-        const treeNodeIdSet = new Set([rootId, ...nodeIds]);
+      // Pass 1: Compute and apply coordinate updates
+      // When root is a child node, perform scoped layout so root itself doesn't shift
+      const isScoped = !!root.customData?.parentId;
+      const layoutUpdates =
+        newMode === "threaded"
+          ? autoLayoutThreadedSubtree(root.id, workingElements, isScoped)
+          : autoLayoutMindNodeSubtree(root.id, workingElements);
 
-        // Tag all nodes in this specific tree with newMode
-        workingElements = workingElements.map((el) => {
-          if (el.customData?.isMindNode && treeNodeIdSet.has(el.id)) {
-            return {
-              ...el,
-              customData: {
-                ...el.customData,
-                layoutMode: newMode,
-              },
-            };
-          }
-          return el;
-        });
+      workingElements = workingElements.map((el) => {
+        if (layoutUpdates[el.id]) {
+          return {
+            ...el,
+            x: layoutUpdates[el.id].x,
+            y: layoutUpdates[el.id].y,
+          };
+        }
+        return el;
+      });
 
-        const layoutUpdates =
-          newMode === "threaded"
-            ? autoLayoutThreadedSubtree(root.id, workingElements)
-            : autoLayoutMindNodeSubtree(root.id, workingElements);
+      // Pass 2: Re-generate and synchronize branches
+      workingElements = workingElements.map((el) => {
+        if (el.customData?.isMindNodeBranch) {
+          const pId = el.customData?.parentId;
+          const cId = el.customData?.childId;
+          const pNode = workingElements.find((e) => e.id === pId);
+          const child = workingElements.find((e) => e.id === cId);
+          if (pNode && child) {
+            // Check if this branch is an outgoing branch within the subtree, or incoming into the subtree
+            const isSubtreeOutgoing = targetNodeIdSet.has(pId);
+            const isSubtreeIncoming = targetNodeIdSet.has(cId);
 
-        workingElements = workingElements.map((el) => {
-          if (layoutUpdates[el.id]) {
-            return {
-              ...el,
-              x: layoutUpdates[el.id].x,
-              y: layoutUpdates[el.id].y,
-            };
-          }
-          return el;
-        });
+            if (isSubtreeOutgoing || isSubtreeIncoming) {
+              const isThreaded =
+                pNode.customData?.layoutMode === "threaded" ||
+                (!isSubtreeOutgoing && el.customData?.branchStyle === "threaded");
 
-        // Re-generate branches for this specific tree based on newMode
-        workingElements = workingElements.map((el) => {
-          if (el.customData?.isMindNodeBranch && treeNodeIdSet.has(el.customData?.parentId)) {
-            const pId = el.customData?.parentId;
-            const cId = el.customData?.childId;
-            const pNode = workingElements.find((e) => e.id === pId);
-            const child = workingElements.find((e) => e.id === cId);
-            if (pNode && child) {
-              if (newMode === "threaded") {
+              if (isThreaded) {
                 const updatedBranch = createThreadedBranch(pNode, child, pNode.strokeColor);
                 return {
                   ...el,
@@ -429,7 +437,8 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
                   },
                 };
               } else {
-                const dir: MindNodeDirection = el.customData?.direction || child.customData?.direction || "right";
+                const dir: MindNodeDirection =
+                  el.customData?.direction || child.customData?.direction || "right";
                 let startX = pNode.x + pNode.width;
                 let startY = pNode.y + pNode.height / 2;
                 let endX = child.x;
@@ -469,20 +478,24 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
               }
             }
           }
-          // Sync text container position
-          if (el.customData?.isMindNodeText && treeNodeIdSet.has(el.customData?.nodeId)) {
-            const container = workingElements.find((e) => e.id === el.customData?.nodeId);
-            if (container) {
-              return {
-                ...el,
-                x: container.x + (container.width - el.width) / 2,
-                y: container.y + (container.height - el.height) / 2,
-              };
-            }
+        }
+        return el;
+      });
+
+      // Pass 3: Re-center all text elements inside their updated containers
+      workingElements = workingElements.map((el) => {
+        if (el.customData?.isMindNodeText) {
+          const container = workingElements.find((e) => e.id === el.customData?.nodeId);
+          if (container) {
+            return {
+              ...el,
+              x: container.x + (container.width - el.width) / 2,
+              y: container.y + (container.height - el.height) / 2,
+            };
           }
-          return el;
-        });
-      }
+        }
+        return el;
+      });
 
       excalidrawAPI.updateScene({ elements: workingElements });
     },
@@ -576,9 +589,204 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
     [excalidrawAPI, selectedMindNode],
   );
 
-  // Toggle Collapse / Expand (mode: "incremental" for 1-level unfold, "all" for all levels at once)
+  // Apply Subtree Styles strictly to the selected node and its descendants
+  const handleApplySubtreeStyles = useCallback(
+    (styles: MindNodeGlobalStyles) => {
+      if (!excalidrawAPI || !selectedMindNode) return;
+      const currentElements = excalidrawAPI.getSceneElements();
+
+      const { nodeIds, textIds, branchIds } = getAllDescendantIds(selectedMindNode.id, currentElements);
+      const targetNodeIdSet = new Set([selectedMindNode.id, ...nodeIds]);
+      const targetTextIdSet = new Set(textIds);
+      const targetBranchIdSet = new Set(branchIds);
+
+      // Selected theme
+      let theme: MindNodeTheme | undefined = undefined;
+      if (styles.customTheme) {
+        theme = styles.customTheme;
+      } else if (styles.themeId) {
+        theme = getThemeById(styles.themeId);
+      }
+
+      const updatedElements = currentElements.map((el) => {
+        if (el.isDeleted) return el;
+
+        // Rectangle nodes
+        if (el.customData?.isMindNode && targetNodeIdSet.has(el.id)) {
+          return {
+            ...el,
+            ...(theme ? { backgroundColor: theme.bg, strokeColor: theme.stroke } : {}),
+            ...(styles.roughness !== undefined ? { roughness: styles.roughness } : {}),
+            ...(styles.roundness !== undefined ? { roundness: { type: styles.roundness as any } } : {}),
+            ...(styles.opacity !== undefined ? { opacity: styles.opacity } : {}),
+            customData: {
+              ...el.customData,
+              ...(styles.themeId ? { themeId: styles.themeId } : {}),
+              ...(styles.layoutMode ? { layoutMode: styles.layoutMode } : {}),
+            },
+          };
+        }
+
+        // Text elements
+        if (
+          el.customData?.isMindNodeText &&
+          (targetNodeIdSet.has(el.customData?.nodeId) || targetTextIdSet.has(el.id))
+        ) {
+          return {
+            ...el,
+            ...(theme ? { strokeColor: theme.text } : {}),
+            ...(styles.fontSize ? { fontSize: styles.fontSize } : {}),
+            ...(styles.fontFamily ? { fontFamily: styles.fontFamily } : {}),
+            ...(styles.textAlign ? { textAlign: styles.textAlign } : {}),
+            ...(styles.opacity !== undefined ? { opacity: styles.opacity } : {}),
+          };
+        }
+
+        // Branches within the subtree or originating from selected node
+        if (
+          el.customData?.isMindNodeBranch &&
+          (targetBranchIdSet.has(el.id) || targetNodeIdSet.has(el.customData?.parentId))
+        ) {
+          return {
+            ...el,
+            ...(theme ? { strokeColor: theme.stroke } : {}),
+            ...(styles.roughness !== undefined ? { roughness: styles.roughness } : {}),
+            ...(styles.opacity !== undefined ? { opacity: styles.opacity } : {}),
+          };
+        }
+
+        return el;
+      });
+
+      let workingElements: readonly ExcalidrawElement[] = updatedElements as readonly ExcalidrawElement[];
+
+      // If layoutMode is modified, trigger layout recalculation, branch re-generation and text centering
+      if (styles.layoutMode) {
+        const newMode = styles.layoutMode;
+        const isScoped = !!selectedMindNode.customData?.parentId;
+        const layoutUpdates =
+          newMode === "threaded"
+            ? autoLayoutThreadedSubtree(selectedMindNode.id, workingElements, isScoped)
+            : autoLayoutMindNodeSubtree(selectedMindNode.id, workingElements);
+
+        workingElements = workingElements.map((el) => {
+          if (layoutUpdates[el.id]) {
+            return {
+              ...el,
+              x: layoutUpdates[el.id].x,
+              y: layoutUpdates[el.id].y,
+            };
+          }
+          return el;
+        });
+
+        // Re-generate branches for this specific subtree based on newMode
+        workingElements = workingElements.map((el) => {
+          if (el.customData?.isMindNodeBranch) {
+            const pId = el.customData?.parentId;
+            const cId = el.customData?.childId;
+            const pNode = workingElements.find((e) => e.id === pId);
+            const child = workingElements.find((e) => e.id === cId);
+            if (pNode && child) {
+              const isSubtreeOutgoing = targetNodeIdSet.has(pId);
+              const isSubtreeIncoming = targetNodeIdSet.has(cId);
+
+              if (isSubtreeOutgoing || isSubtreeIncoming) {
+                const isThreaded =
+                  pNode.customData?.layoutMode === "threaded" ||
+                  (!isSubtreeOutgoing && el.customData?.branchStyle === "threaded");
+
+                if (isThreaded) {
+                  const updatedBranch = createThreadedBranch(pNode, child, pNode.strokeColor);
+                  return {
+                    ...el,
+                    x: updatedBranch.x,
+                    y: updatedBranch.y,
+                    width: updatedBranch.width,
+                    height: updatedBranch.height,
+                    points: (updatedBranch as any).points,
+                    roundness: updatedBranch.roundness,
+                    customData: {
+                      ...el.customData,
+                      branchStyle: "threaded",
+                    },
+                  };
+                } else {
+                  const dir: MindNodeDirection =
+                    el.customData?.direction || child.customData?.direction || "right";
+                  let startX = pNode.x + pNode.width;
+                  let startY = pNode.y + pNode.height / 2;
+                  let endX = child.x;
+                  let endY = child.y + child.height / 2;
+
+                  if (dir === "left") {
+                    startX = pNode.x;
+                    startY = pNode.y + pNode.height / 2;
+                    endX = child.x + child.width;
+                    endY = child.y + child.height / 2;
+                  } else if (dir === "top") {
+                    startX = pNode.x + pNode.width / 2;
+                    startY = pNode.y;
+                    endX = child.x + child.width / 2;
+                    endY = child.y + child.height;
+                  } else if (dir === "bottom") {
+                    startX = pNode.x + pNode.width / 2;
+                    startY = pNode.y + pNode.height;
+                    endX = child.x + child.width / 2;
+                    endY = child.y;
+                  }
+
+                  const points = calculateOrganicBranchPoints(startX, startY, endX, endY, dir);
+                  return {
+                    ...el,
+                    x: startX,
+                    y: startY,
+                    width: Math.abs(endX - startX) || 1,
+                    height: Math.abs(endY - startY) || 1,
+                    points: points as any,
+                    roundness: { type: 2 },
+                    customData: {
+                      ...el.customData,
+                      branchStyle: "organic",
+                    },
+                  };
+                }
+              }
+            }
+          }
+          return el;
+        });
+
+        // Re-center all text elements
+        workingElements = workingElements.map((el) => {
+          if (el.customData?.isMindNodeText) {
+            const container = workingElements.find((e) => e.id === el.customData?.nodeId);
+            if (container) {
+              return {
+                ...el,
+                x: container.x + (container.width - el.width) / 2,
+                y: container.y + (container.height - el.height) / 2,
+              };
+            }
+          }
+          return el;
+        });
+      }
+
+      excalidrawAPI.updateScene({ elements: workingElements as readonly ExcalidrawElement[] });
+    },
+    [excalidrawAPI, selectedMindNode],
+  );
+
+  // Toggle Collapse / Expand
+  // mode: "incremental" for 1-level unfold, "all" for all levels at once
+  // targetDirection: optional directional filter ("right" | "left" | "top" | "bottom" | "all")
   const handleToggleCollapse = useCallback(
-    (node: ExcalidrawElement, mode: "incremental" | "all" = "incremental") => {
+    (
+      node: ExcalidrawElement,
+      mode: "incremental" | "all" = "incremental",
+      targetDirection?: MindNodeDirection | "all",
+    ) => {
       if (!excalidrawAPI) return;
 
       // Clear any in-flight expand timers
@@ -588,14 +796,30 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       const currentElements = excalidrawAPI.getSceneElements();
       const isCurrentlyCollapsed = !!node.customData?.collapsed;
 
+      // Determine elements to hide or reveal
       if (!isCurrentlyCollapsed) {
-        // --- COLLAPSE: Hide all descendants and images ---
-        const { nodeIds, textIds, branchIds, imageIds } = getAllDescendantIds(
-          node.id,
-          currentElements,
-        );
-        const hideSet = new Set([...nodeIds, ...textIds, ...branchIds, ...imageIds]);
-        const descendantNodeIdSet = new Set(nodeIds);
+        // --- COLLAPSE ---
+        let hideNodeIds: string[] = [];
+        let hideTextIds: string[] = [];
+        let hideBranchIds: string[] = [];
+        let hideImageIds: string[] = [];
+
+        if (targetDirection && targetDirection !== "all") {
+          const res = getDescendantIdsByDirection(node.id, targetDirection, currentElements);
+          hideNodeIds = res.nodeIds;
+          hideTextIds = res.textIds;
+          hideBranchIds = res.branchIds;
+          hideImageIds = res.imageIds;
+        } else {
+          const res = getAllDescendantIds(node.id, currentElements);
+          hideNodeIds = res.nodeIds;
+          hideTextIds = res.textIds;
+          hideBranchIds = res.branchIds;
+          hideImageIds = res.imageIds;
+        }
+
+        const hideSet = new Set([...hideNodeIds, ...hideTextIds, ...hideBranchIds, ...hideImageIds]);
+        const descendantNodeIdSet = new Set(hideNodeIds);
 
         const updatedElements = currentElements.map((el) => {
           if (el.id === node.id) {
@@ -646,7 +870,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         );
       } else {
         // --- EXPAND ---
-        if (mode === "all") {
+        if (mode === "all" && (!targetDirection || targetDirection === "all")) {
           // --- FULL EXPAND (ALL LEVELS AT ONCE) ---
           const { nodeIds, textIds, branchIds, imageIds } = getAllDescendantIds(
             node.id,
@@ -688,7 +912,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
               : prev,
           );
         } else {
-          // --- INCREMENTAL EXPAND (IMMEDIATE CHILD LEVEL ONLY) ---
+          // --- INCREMENTAL EXPAND (OR DIRECTIONAL EXPAND) ---
           let workingElements = currentElements.map((el) => {
             if (el.id === node.id) {
               return {
@@ -702,12 +926,13 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             return el;
           });
 
-          // Identify immediate children nodes
+          // Identify immediate children nodes (filtered by targetDirection if provided)
           const immediateChildNodes = workingElements.filter(
             (el) =>
               !el.isDeleted &&
               el.customData?.isMindNode &&
-              el.customData?.parentId === node.id,
+              el.customData?.parentId === node.id &&
+              (!targetDirection || targetDirection === "all" || (el.customData?.direction || "right") === targetDirection),
           );
           const immediateChildNodeIds = new Set(immediateChildNodes.map((c) => c.id));
 
@@ -715,7 +940,8 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             (el) =>
               !el.isDeleted &&
               el.customData?.isMindNodeBranch &&
-              el.customData?.parentId === node.id,
+              el.customData?.parentId === node.id &&
+              (!targetDirection || targetDirection === "all" || (el.customData?.direction || "right") === targetDirection),
           );
 
           const immediateTexts = workingElements.filter(
@@ -766,7 +992,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
               : prev,
           );
 
-          // Sequential one-by-one reveal
+          // Sequential reveal
           immediateChildNodes.forEach((childNode, index) => {
             const timer = setTimeout(() => {
               if (!excalidrawAPI) return;
@@ -1032,11 +1258,14 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
       bottomLeftX: screenX - 14,
       bottomLeftY: screenY + screenH - 2,
 
-      // Incremental / Hierarchical collapse toggle at right side
-      collapseX: screenX + screenW + 42,
-      collapseY: screenY + screenH / 2 - 14,
+      // Sized to 34px (28px + 20%) for comfortable visibility
+      dialSize: 34,
 
-      // Full Subtree unfold / collapse toggle at left side
+      // Directional D-Pad Expand/Collapse Controller positioned to the right of the right (+) button
+      collapseX: screenX + screenW + 44,
+      collapseY: screenY + screenH / 2 - 17,
+
+      // Full Subtree unfold / collapse toggle at left side (to the left of left (+) button)
       leftCollapseX: screenX - 70,
       leftCollapseY: screenY + screenH / 2 - 14,
 
@@ -1049,19 +1278,43 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
   const overlayCoords = getSelectedNodeOverlayCoords();
   const isCollapsed = !!selectedMindNode?.customData?.collapsed;
 
-  // Check if current node has children or anchored images that can be collapsed
-  const hasSubtree = useCallback(() => {
-    if (!selectedMindNode || !excalidrawAPI) return false;
+  // Check which directions currently have children for the selected node
+  const getChildDirections = useCallback(() => {
+    if (!selectedMindNode || !excalidrawAPI) {
+      return { hasRight: false, hasLeft: false, hasTop: false, hasBottom: false, hasAny: false };
+    }
     const elements = excalidrawAPI.getSceneElements();
-    return elements.some(
-      (el) =>
-        !el.isDeleted &&
-        ((el.customData?.isMindNode && el.customData?.parentId === selectedMindNode.id) ||
-          (el.type === "image" && el.customData?.anchoredMindNodeId === selectedMindNode.id)),
-    );
+    let hasRight = false;
+    let hasLeft = false;
+    let hasTop = false;
+    let hasBottom = false;
+
+    for (const el of elements) {
+      if (!el.isDeleted) {
+        if (el.customData?.isMindNode && el.customData?.parentId === selectedMindNode.id) {
+          const dir = el.customData?.direction || "right";
+          if (dir === "right") hasRight = true;
+          if (dir === "left") hasLeft = true;
+          if (dir === "top") hasTop = true;
+          if (dir === "bottom") hasBottom = true;
+        }
+        if (el.type === "image" && el.customData?.anchoredMindNodeId === selectedMindNode.id) {
+          hasRight = true; // anchor images associate with primary direction
+        }
+      }
+    }
+
+    return {
+      hasRight,
+      hasLeft,
+      hasTop,
+      hasBottom,
+      hasAny: hasRight || hasLeft || hasTop || hasBottom,
+    };
   }, [selectedMindNode, excalidrawAPI]);
 
-  const canCollapse = hasSubtree() || isCollapsed;
+  const childDirs = getChildDirections();
+  const canCollapse = childDirs.hasAny || isCollapsed;
 
   return (
     <>
@@ -1119,8 +1372,13 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
                   setActiveThemeId(theme.id);
                   if (selectedMindNode && excalidrawAPI) {
                     const elements = excalidrawAPI.getSceneElements();
+                    const { nodeIds, textIds, branchIds } = getAllDescendantIds(selectedMindNode.id, elements);
+                    const targetNodeIdSet = new Set([selectedMindNode.id, ...nodeIds]);
+                    const targetTextIdSet = new Set(textIds);
+                    const targetBranchIdSet = new Set(branchIds);
+
                     const updated = elements.map((el) => {
-                      if (el.id === selectedMindNode.id) {
+                      if (el.customData?.isMindNode && targetNodeIdSet.has(el.id)) {
                         return {
                           ...el,
                           strokeColor: theme.stroke,
@@ -1128,7 +1386,10 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
                           customData: { ...el.customData, themeId: theme.id },
                         };
                       }
-                      if (el.customData?.isMindNodeText && el.customData?.nodeId === selectedMindNode.id) {
+                      if (
+                        el.customData?.isMindNodeText &&
+                        (targetNodeIdSet.has(el.customData?.nodeId) || targetTextIdSet.has(el.id))
+                      ) {
                         return {
                           ...el,
                           strokeColor: theme.text,
@@ -1136,7 +1397,7 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
                       }
                       if (
                         el.customData?.isMindNodeBranch &&
-                        el.customData?.parentId === selectedMindNode.id
+                        (targetBranchIdSet.has(el.id) || targetNodeIdSet.has(el.customData?.parentId))
                       ) {
                         return {
                           ...el,
@@ -1171,8 +1432,10 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
         activeThemeId={activeThemeId}
         onSelectTheme={(themeId) => setActiveThemeId(themeId)}
         onApplyGlobalStyles={handleApplyGlobalStyles}
+        onApplySubtreeStyles={handleApplySubtreeStyles}
         currentLayoutMode={layoutMode}
         onChangeLayoutMode={handleChangeLayoutMode}
+        hasSelectedNode={!!selectedMindNode}
       />
 
       {/* Floating Interactive Node Handles */}
@@ -1329,28 +1592,99 @@ export const MindNodeManager: React.FC<MindNodeManagerProps> = ({ excalidrawAPI 
             </>
           )}
 
-          {/* Right Collapse Button: Incremental / Hierarchical Unfold Toggle (Visible in both modes) */}
+          {/* Directional D-Pad Expand/Collapse Controller Hub (+20% size, bold visible chevron arrows) */}
           {canCollapse && (
-            <button
-              className={`mindnode-handle-btn collapse-toggle collapse-incremental ${
-                isCollapsed ? "is-collapsed" : ""
-              }`}
+            <div
+              className={`mindnode-dpad-controller ${isCollapsed ? "is-collapsed" : ""}`}
               style={{
                 left: `${overlayCoords.collapseX}px`,
                 top: `${overlayCoords.collapseY}px`,
+                width: `${overlayCoords.dialSize}px`,
+                height: `${overlayCoords.dialSize}px`,
               }}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggleCollapse(selectedMindNode, "incremental");
-              }}
-              title={
-                isCollapsed
-                  ? "Expand Subtree (Sequential / 1 Level at a time)"
-                  : "Collapse Subtree & Anchored Images"
-              }
+              onClick={(e) => e.stopPropagation()}
+              title="Directional Expand/Collapse Hub"
             >
-              {isCollapsed ? "▶" : "▼"}
-            </button>
+              {/* Top Direction Button (⌃) */}
+              {(childDirs.hasTop || isCollapsed) && (
+                <button
+                  className="dpad-btn dpad-top"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleCollapse(selectedMindNode, "incremental", "top");
+                  }}
+                  title={isCollapsed ? "Expand Top Branch" : "Collapse Top Branch"}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="18 15 12 9 6 15" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Bottom Direction Button (⌄) */}
+              {(childDirs.hasBottom || isCollapsed) && (
+                <button
+                  className="dpad-btn dpad-bottom"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleCollapse(selectedMindNode, "incremental", "bottom");
+                  }}
+                  title={isCollapsed ? "Expand Bottom Branch" : "Collapse Bottom Branch"}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Left Direction Button (‹) */}
+              {(childDirs.hasLeft || isCollapsed) && (
+                <button
+                  className="dpad-btn dpad-left"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleCollapse(selectedMindNode, "incremental", "left");
+                  }}
+                  title={isCollapsed ? "Expand Left Branch" : "Collapse Left Branch"}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Right Direction Button (›) */}
+              {(childDirs.hasRight || isCollapsed) && (
+                <button
+                  className="dpad-btn dpad-right"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleCollapse(selectedMindNode, "incremental", "right");
+                  }}
+                  title={isCollapsed ? "Expand Right Branch" : "Collapse Right Branch"}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Center Button (●): All Directions Hub */}
+              <button
+                className="dpad-btn dpad-center"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleCollapse(selectedMindNode, "incremental", "all");
+                }}
+                title={
+                  isCollapsed
+                    ? "Expand All Branches (1 level)"
+                    : "Collapse All Sub-Branches & Images"
+                }
+              >
+                <span className="dpad-center-dot" />
+              </button>
+            </div>
           )}
 
           {/* Left Collapse Button: Full Subtree Simultaneous Unfold Toggle (Visible in both modes) */}

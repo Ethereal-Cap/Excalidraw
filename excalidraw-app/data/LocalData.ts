@@ -70,6 +70,8 @@ class LocalFileManager extends FileManager {
   };
 }
 
+const idbDataStore = createStore("excalidraw-data-db", "data-store");
+
 const saveDataStateToLocalStorage = (
   elements: readonly ExcalidrawElement[],
   appState: AppState,
@@ -87,9 +89,21 @@ const saveDataStateToLocalStorage = (
       _appState.openSidebar = null;
     }
 
+    const nonDeleted = getNonDeletedElements(elements);
+
+    // If payload is unusually large (> 2MB), save to IndexedDB directly to prevent UI thread lock & quota errors
+    if (nonDeleted.length > 500) {
+      set("elements", nonDeleted, idbDataStore).catch(console.warn);
+      set("appState", _appState, idbDataStore).catch(console.warn);
+      if (localStorageQuotaExceeded) {
+        appJotaiStore.set(localStorageQuotaExceededAtom, false);
+      }
+      return;
+    }
+
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS,
-      JSON.stringify(getNonDeletedElements(elements)),
+      JSON.stringify(nonDeleted),
     );
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_APP_STATE,
@@ -100,16 +114,26 @@ const saveDataStateToLocalStorage = (
       appJotaiStore.set(localStorageQuotaExceededAtom, false);
     }
   } catch (error: any) {
-    // Unable to access window.localStorage
-    console.error(error);
-    if (isQuotaExceededError(error) && !localStorageQuotaExceeded) {
-      appJotaiStore.set(localStorageQuotaExceededAtom, true);
+    if (isQuotaExceededError(error)) {
+      // Gracefully fall back to IndexedDB with zero error toasts
+      try {
+        const _appState = clearAppStateForLocalStorage(appState);
+        set("elements", getNonDeletedElements(elements), idbDataStore).catch(console.warn);
+        set("appState", _appState, idbDataStore).catch(console.warn);
+      } catch (e) {
+        console.warn("IndexedDB fallback write failed", e);
+      }
+      if (localStorageQuotaExceeded) {
+        appJotaiStore.set(localStorageQuotaExceededAtom, false);
+      }
+    } else {
+      console.error(error);
     }
   }
 };
 
 const isQuotaExceededError = (error: any) => {
-  return error instanceof DOMException && error.name === "QuotaExceededError";
+  return error instanceof DOMException && (error.name === "QuotaExceededError" || error.code === 22 || error.code === 1014);
 };
 
 type SavingLockTypes = "collaboration";
