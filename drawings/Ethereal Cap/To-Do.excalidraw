@@ -1940,9 +1940,7 @@
       "tab": "github"
     },
     "openDialog": null,
-    "previousSelectedElementIds": {
-      "I0yeypzMV067u4Ly5EVUi": true
-    },
+    "previousSelectedElementIds": {},
     "resizingElement": null,
     "scrolledOutside": false,
     "scrollX": -43.62252580693725,
