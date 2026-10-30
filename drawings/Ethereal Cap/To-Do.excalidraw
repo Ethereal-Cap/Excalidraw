@@ -161,11 +161,16 @@
       "index": "aL",
       "roundness": null,
       "seed": 1504956056,
-      "version": 211,
-      "versionNonce": 550943774,
+      "version": 212,
+      "versionNonce": 408336286,
       "isDeleted": false,
-      "boundElements": [],
-      "updated": 1793290624640,
+      "boundElements": [
+        {
+          "id": "HluJoArJyEwzh-UXuCNX2",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1793333402103,
       "link": null,
       "locked": false,
       "text": "fix the script to meet our interview answers\nremove hard coded trend filters combination \n    from master sweep pipeline\n LOG ERRORS FOR MISSING VALUES OF ANY \n    INDICATOR OR MISSING INTRADAY TF \n        FOR TIE BREAKERS\nexcel output trade sheet indicator column values\nreview and audit it",
@@ -272,11 +277,16 @@
       "index": "aP",
       "roundness": null,
       "seed": 659753112,
-      "version": 116,
-      "versionNonce": 618859752,
+      "version": 117,
+      "versionNonce": 1463586626,
       "isDeleted": false,
-      "boundElements": [],
-      "updated": 1793272364579,
+      "boundElements": [
+        {
+          "id": "QYYc7d_JhHwpwFzSsfr8u",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1793333375609,
       "link": null,
       "locked": false,
       "text": "check taking 2nd,3rd etc batch of trades in backtest",
@@ -1137,8 +1147,8 @@
     {
       "id": "lNnnq_y_rIeqzXMiMn9Pb",
       "type": "text",
-      "x": 1124.958997350936,
-      "y": 697.0922764084959,
+      "x": 1126.3875687795075,
+      "y": 458.5208478370673,
       "width": 231.23333740234375,
       "height": 25,
       "angle": 0,
@@ -1154,8 +1164,8 @@
       "index": "b0B",
       "roundness": null,
       "seed": 1852272834,
-      "version": 31,
-      "versionNonce": 1317663170,
+      "version": 68,
+      "versionNonce": 107198466,
       "isDeleted": false,
       "boundElements": [
         {
@@ -1163,7 +1173,7 @@
           "type": "arrow"
         }
       ],
-      "updated": 1793290561704,
+      "updated": 1793292116609,
       "link": null,
       "locked": false,
       "text": "indicator values recheck",
@@ -1292,8 +1302,8 @@
       "type": "arrow",
       "x": 593.9038215774972,
       "y": 425.87811508123724,
-      "width": 586.1274458398614,
-      "height": 527.1123005959842,
+      "width": 526.4837472020106,
+      "height": 58.540872024555426,
       "angle": 0,
       "strokeColor": "#fde68a",
       "backgroundColor": "transparent",
@@ -1309,11 +1319,11 @@
         "type": 2
       },
       "seed": 1892245214,
-      "version": 289,
-      "versionNonce": 7800670,
+      "version": 386,
+      "versionNonce": 2129920066,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1793290564890,
+      "updated": 1793292125674,
       "link": null,
       "locked": false,
       "points": [
@@ -1326,12 +1336,12 @@
           21.144906041099716
         ],
         [
-          471.2293346302208,
-          527.1123005959842
+          435.51504891593504,
+          58.540872024555426
         ],
         [
-          586.1274458398614,
-          302.21416132725864
+          526.4837472020106,
+          54.2071051123599
         ]
       ],
       "startBinding": null,
@@ -1345,13 +1355,14 @@
       },
       "startArrowhead": null,
       "endArrowhead": "arrow",
-      "elbowed": false
+      "elbowed": false,
+      "moveMidPointsWithElement": false
     },
     {
       "id": "Cc4IciOTOvusnb6IQWYPm",
       "type": "text",
-      "x": 323.8751547487196,
-      "y": 596.1305172935985,
+      "x": 291.0180118915767,
+      "y": 587.5590887221699,
       "width": 422.25,
       "height": 25,
       "angle": 0,
@@ -1367,11 +1378,11 @@
       "index": "b0G",
       "roundness": null,
       "seed": 2130308738,
-      "version": 48,
-      "versionNonce": 1530802974,
+      "version": 85,
+      "versionNonce": 136779394,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1793290589961,
+      "updated": 1793291078140,
       "link": null,
       "locked": false,
       "text": "cleanup and organise entire pythons scripts",
@@ -1618,9 +1629,9 @@
       "id": "Fz_Y-AOik66wEzeIRoA_X",
       "type": "text",
       "x": 1753.6225258069373,
-      "y": 967.1654124202935,
+      "y": 965.7368409917219,
       "width": 550.4500122070312,
-      "height": 50,
+      "height": 75,
       "angle": 0,
       "strokeColor": "#fde68a",
       "backgroundColor": "transparent",
@@ -1634,20 +1645,25 @@
       "index": "b0Z",
       "roundness": null,
       "seed": 1691380738,
-      "version": 105,
-      "versionNonce": 364450782,
+      "version": 151,
+      "versionNonce": 1552687490,
       "isDeleted": false,
-      "boundElements": null,
-      "updated": 1793291016641,
+      "boundElements": [
+        {
+          "id": "QYYc7d_JhHwpwFzSsfr8u",
+          "type": "arrow"
+        }
+      ],
+      "updated": 1793333369988,
       "link": null,
       "locked": false,
-      "text": "update planner skill to put all context for a new session\n to implement plan easily",
+      "text": "update planner skill to put all context for a new session\n to implement plan easily\nalways spawn bot to adut at the end of plan",
       "fontSize": 20,
       "fontFamily": 5,
       "textAlign": "left",
       "verticalAlign": "top",
       "containerId": null,
-      "originalText": "update planner skill to put all context for a new session\n to implement plan easily",
+      "originalText": "update planner skill to put all context for a new session\n to implement plan easily\nalways spawn bot to adut at the end of plan",
       "autoResize": true,
       "lineHeight": 1.25
     },
@@ -1687,6 +1703,196 @@
       "originalText": "Claude",
       "autoResize": true,
       "lineHeight": 1.25
+    },
+    {
+      "id": "p3gY6nShLzkEspdZ1E0f2",
+      "type": "text",
+      "x": 297.90824009265174,
+      "y": 621.4511267060077,
+      "width": 782.1166381835938,
+      "height": 25,
+      "angle": 0,
+      "strokeColor": "#fde68a",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "b0b",
+      "roundness": null,
+      "seed": 1544609282,
+      "version": 100,
+      "versionNonce": 1781907422,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793291109287,
+      "link": null,
+      "locked": false,
+      "text": "python script to download and save a list of index constiuents of india and us ",
+      "fontSize": 20,
+      "fontFamily": 5,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "originalText": "python script to download and save a list of index constiuents of india and us ",
+      "autoResize": true,
+      "lineHeight": 1.25
+    },
+    {
+      "id": "maWggN0IwV_WWEkrZ7cA_",
+      "type": "text",
+      "x": 363.62252580693746,
+      "y": 444.3082695631506,
+      "width": 182.60000610351562,
+      "height": 25,
+      "angle": 0,
+      "strokeColor": "#fde68a",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "b0c",
+      "roundness": null,
+      "seed": 583000286,
+      "version": 98,
+      "versionNonce": 1764732446,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793291549063,
+      "link": null,
+      "locked": false,
+      "text": "pine script skill file",
+      "fontSize": 20,
+      "fontFamily": 5,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "originalText": "pine script skill file",
+      "autoResize": true,
+      "lineHeight": 1.25
+    },
+    {
+      "id": "QYYc7d_JhHwpwFzSsfr8u",
+      "type": "arrow",
+      "x": 1760.7653829497945,
+      "y": 1012.5225552774365,
+      "width": 848.5714285714287,
+      "height": 772.857142857143,
+      "angle": 0,
+      "strokeColor": "#fde68a",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "b0d",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 138728002,
+      "version": 300,
+      "versionNonce": 1682554626,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793333379922,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -737.1428571428571,
+          34.28571428571411
+        ],
+        [
+          -848.5714285714287,
+          -738.5714285714289
+        ]
+      ],
+      "startBinding": {
+        "elementId": "Fz_Y-AOik66wEzeIRoA_X",
+        "mode": "inside",
+        "fixedPoint": [
+          0.012976395648022242,
+          0.6238095238095275
+        ]
+      },
+      "endBinding": null,
+      "startArrowhead": null,
+      "endArrowhead": "arrow",
+      "elbowed": false
+    },
+    {
+      "id": "HluJoArJyEwzh-UXuCNX2",
+      "type": "arrow",
+      "x": 1736.4796686640802,
+      "y": 979.6654124202936,
+      "width": 144.29417079947348,
+      "height": 698.1892525657838,
+      "angle": 0,
+      "strokeColor": "#fde68a",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "b0e",
+      "roundness": {
+        "type": 2
+      },
+      "seed": 1963157122,
+      "version": 246,
+      "versionNonce": 1951191902,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1793333402103,
+      "link": null,
+      "locked": false,
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          -92.85714285714289,
+          -125.71428571428578
+        ],
+        [
+          -61.42857142857156,
+          -674.2857142857144
+        ],
+        [
+          -144.29417079947348,
+          -698.1892525657838
+        ]
+      ],
+      "startBinding": null,
+      "endBinding": {
+        "elementId": "95PGT5I4YkZgUOpFbEKiM",
+        "mode": "orbit",
+        "fixedPoint": [
+          0.8720652448430547,
+          0.12793475515694497
+        ]
+      },
+      "startArrowhead": null,
+      "endArrowhead": "arrow",
+      "elbowed": false
     }
   ],
   "appState": {
@@ -1755,12 +1961,12 @@
     },
     "openDialog": null,
     "previousSelectedElementIds": {
-      "MRgyHGqKhm7AK0gMmoAHz": true
+      "HluJoArJyEwzh-UXuCNX2": true
     },
     "resizingElement": null,
     "scrolledOutside": false,
-    "scrollX": -133.62252580693743,
-    "scrollY": 277.47744472256375,
+    "scrollX": -175.0510972355087,
+    "scrollY": 101.76315900827801,
     "scrollConstraints": null,
     "selectedElementIds": {},
     "hoveredElementIds": {},
