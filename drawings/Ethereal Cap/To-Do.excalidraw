@@ -1122,16 +1122,11 @@
       "index": "b0B",
       "roundness": null,
       "seed": 1852272834,
-      "version": 68,
-      "versionNonce": 107198466,
+      "version": 69,
+      "versionNonce": 2013692564,
       "isDeleted": false,
-      "boundElements": [
-        {
-          "id": "q8LmwaMfZLox78bhq_d5Z",
-          "type": "arrow"
-        }
-      ],
-      "updated": 1793292116609,
+      "boundElements": [],
+      "updated": 1793381386724,
       "link": null,
       "locked": false,
       "text": "indicator values recheck",
@@ -1182,43 +1177,6 @@
       "lineHeight": 1.25
     },
     {
-      "id": "0AJkS2doRZJWdWWa54BjD",
-      "type": "text",
-      "x": 276.7302309610024,
-      "y": 475.30248277302906,
-      "width": 525.8666381835938,
-      "height": 25,
-      "angle": 0,
-      "strokeColor": "#fde68a",
-      "backgroundColor": "transparent",
-      "fillStyle": "solid",
-      "strokeWidth": 2,
-      "strokeStyle": "solid",
-      "roughness": 1,
-      "opacity": 100,
-      "groupIds": [],
-      "frameId": null,
-      "index": "b0D",
-      "roundness": null,
-      "seed": 1033588446,
-      "version": 34,
-      "versionNonce": 1756004574,
-      "isDeleted": false,
-      "boundElements": null,
-      "updated": 1793290590812,
-      "link": null,
-      "locked": false,
-      "text": "ether scan watchlist use clear list instead of deleting",
-      "fontSize": 20,
-      "fontFamily": 5,
-      "textAlign": "left",
-      "verticalAlign": "top",
-      "containerId": null,
-      "originalText": "ether scan watchlist use clear list instead of deleting",
-      "autoResize": true,
-      "lineHeight": 1.25
-    },
-    {
       "id": "LBnnWa9kPVCm1vwyuyE9e",
       "type": "text",
       "x": 288.8130344130593,
@@ -1254,67 +1212,6 @@
       "originalText": "clickup daily task list in the morning",
       "autoResize": true,
       "lineHeight": 1.25
-    },
-    {
-      "id": "q8LmwaMfZLox78bhq_d5Z",
-      "type": "arrow",
-      "x": 593.9038215774972,
-      "y": 425.87811508123724,
-      "width": 526.4837472020106,
-      "height": 58.540872024555426,
-      "angle": 0,
-      "strokeColor": "#fde68a",
-      "backgroundColor": "transparent",
-      "fillStyle": "solid",
-      "strokeWidth": 2,
-      "strokeStyle": "solid",
-      "roughness": 1,
-      "opacity": 100,
-      "groupIds": [],
-      "frameId": null,
-      "index": "b0F",
-      "roundness": {
-        "type": 2
-      },
-      "seed": 1892245214,
-      "version": 386,
-      "versionNonce": 2129920066,
-      "isDeleted": false,
-      "boundElements": null,
-      "updated": 1793292125674,
-      "link": null,
-      "locked": false,
-      "points": [
-        [
-          0,
-          0
-        ],
-        [
-          421.387770390486,
-          21.144906041099716
-        ],
-        [
-          435.51504891593504,
-          58.540872024555426
-        ],
-        [
-          526.4837472020106,
-          54.2071051123599
-        ]
-      ],
-      "startBinding": null,
-      "endBinding": {
-        "elementId": "lNnnq_y_rIeqzXMiMn9Pb",
-        "mode": "orbit",
-        "fixedPoint": [
-          0.2661233869095981,
-          0.733876613090406
-        ]
-      },
-      "startArrowhead": null,
-      "endArrowhead": "arrow",
-      "elbowed": false,
-      "moveMidPointsWithElement": false
     },
     {
       "id": "Cc4IciOTOvusnb6IQWYPm",
@@ -1623,8 +1520,8 @@
     {
       "id": "maWggN0IwV_WWEkrZ7cA_",
       "type": "text",
-      "x": 326.47966866408035,
-      "y": 411.4511267060077,
+      "x": 307.9082400926518,
+      "y": 394.3082695631506,
       "width": 182.60000610351562,
       "height": 25,
       "angle": 0,
@@ -1640,11 +1537,11 @@
       "index": "b0c",
       "roundness": null,
       "seed": 583000286,
-      "version": 130,
-      "versionNonce": 518316830,
+      "version": 162,
+      "versionNonce": 2020129300,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1793347916454,
+      "updated": 1793381384944,
       "link": null,
       "locked": false,
       "text": "pine script skill file",
@@ -1660,8 +1557,8 @@
     {
       "id": "I0yeypzMV067u4Ly5EVUi",
       "type": "ellipse",
-      "x": 949.3368115212229,
-      "y": 228.23684099172215,
+      "x": 906.47966866408,
+      "y": -88.90601615113496,
       "width": 34.28571428571422,
       "height": 69.99999999999989,
       "angle": 0,
@@ -1679,11 +1576,11 @@
         "type": 2
       },
       "seed": 1368947422,
-      "version": 151,
-      "versionNonce": 104061470,
+      "version": 193,
+      "versionNonce": 1247966996,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1793347899890,
+      "updated": 1793381399287,
       "link": null,
       "locked": false
     },
@@ -1943,8 +1840,8 @@
     {
       "id": "9_xGrvQNxaD0rTrBODXhl",
       "type": "text",
-      "x": 445.05109723550845,
-      "y": 440.02255527743654,
+      "x": 295.05109723550845,
+      "y": 452.8796981345794,
       "width": 650.25,
       "height": 25,
       "angle": 0,
@@ -1960,11 +1857,11 @@
       "index": "b0o",
       "roundness": null,
       "seed": 136081438,
-      "version": 92,
-      "versionNonce": 1484100098,
+      "version": 132,
+      "versionNonce": 245924652,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1793380283538,
+      "updated": 1793381383595,
       "link": null,
       "locked": false,
       "text": "converting pine script user pdf to md file and adding it to skill file",
@@ -2043,11 +1940,13 @@
       "tab": "github"
     },
     "openDialog": null,
-    "previousSelectedElementIds": {},
+    "previousSelectedElementIds": {
+      "I0yeypzMV067u4Ly5EVUi": true
+    },
     "resizingElement": null,
     "scrolledOutside": false,
-    "scrollX": -225.05109723550862,
-    "scrollY": 220.33458757970618,
+    "scrollX": -43.62252580693725,
+    "scrollY": 213.19173043684907,
     "scrollConstraints": null,
     "selectedElementIds": {},
     "hoveredElementIds": {},
