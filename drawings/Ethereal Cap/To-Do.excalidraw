@@ -682,8 +682,8 @@
     {
       "id": "hwI-BUDGeynE9Wqfdw4Rr",
       "type": "text",
-      "x": 381.2307610502696,
-      "y": 134.2500000000001,
+      "x": 409.8021896216982,
+      "y": 162.82142857142873,
       "width": 303.6333312988281,
       "height": 41.99999999999993,
       "angle": 0,
@@ -699,11 +699,11 @@
       "index": "ao",
       "roundness": null,
       "seed": 916402584,
-      "version": 205,
-      "versionNonce": 516590232,
+      "version": 229,
+      "versionNonce": 749629278,
       "isDeleted": false,
       "boundElements": [],
-      "updated": 1793270270302,
+      "updated": 1793385631422,
       "link": null,
       "locked": false,
       "text": "Open Code Pipeline",
@@ -1483,8 +1483,8 @@
     {
       "id": "I0yeypzMV067u4Ly5EVUi",
       "type": "ellipse",
-      "x": 906.47966866408,
-      "y": -88.90601615113496,
+      "x": 910.7653829497942,
+      "y": -31.763159008277825,
       "width": 34.28571428571422,
       "height": 69.99999999999989,
       "angle": 0,
@@ -1502,11 +1502,11 @@
         "type": 2
       },
       "seed": 1368947422,
-      "version": 193,
-      "versionNonce": 1247966996,
+      "version": 220,
+      "versionNonce": 961637058,
       "isDeleted": false,
       "boundElements": null,
-      "updated": 1793381399287,
+      "updated": 1793385637629,
       "link": null,
       "locked": false
     },
@@ -2393,7 +2393,7 @@
     },
     "openDialog": null,
     "previousSelectedElementIds": {
-      "iIvsNrvfz6HfsJ3WbJo0T": true
+      "95PGT5I4YkZgUOpFbEKiM": true
     },
     "resizingElement": null,
     "scrolledOutside": false,
