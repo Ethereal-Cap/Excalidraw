@@ -7550,6 +7550,43 @@
       "originalText": "jma algo 1hr and 30mins",
       "autoResize": true,
       "lineHeight": 1.25
+    },
+    {
+      "id": "zc8d2fgyMDjrSFIN2w0VR",
+      "type": "text",
+      "x": 329.2496650953239,
+      "y": 226.25369416796457,
+      "width": 673.933349609375,
+      "height": 25,
+      "angle": 0,
+      "strokeColor": "#fde68a",
+      "backgroundColor": "#ffec99",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "index": "b5h",
+      "roundness": null,
+      "seed": 415403076,
+      "version": 77,
+      "versionNonce": 1814876156,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1794395356221,
+      "link": null,
+      "locked": false,
+      "text": "indices addition to stocks paraquet and trading view indices creation",
+      "fontSize": 20,
+      "fontFamily": 5,
+      "textAlign": "left",
+      "verticalAlign": "top",
+      "containerId": null,
+      "originalText": "indices addition to stocks paraquet and trading view indices creation",
+      "autoResize": true,
+      "lineHeight": 1.25
     }
   ],
   "appState": {
@@ -7617,15 +7654,15 @@
       "tab": "github"
     },
     "openDialog": null,
-    "previousSelectedElementIds": {
-      "WHXMTp1XOyomvwHCluUN_": true
-    },
+    "previousSelectedElementIds": {},
     "resizingElement": null,
     "scrolledOutside": false,
-    "scrollX": -50.54311672767284,
-    "scrollY": 395.36235534085847,
+    "scrollX": -41.765867037822204,
+    "scrollY": 152.81906525518434,
     "scrollConstraints": null,
-    "selectedElementIds": {},
+    "selectedElementIds": {
+      "zc8d2fgyMDjrSFIN2w0VR": true
+    },
     "hoveredElementIds": {},
     "selectedGroupIds": {},
     "selectedElementsAreBeingDragged": false,
@@ -7650,7 +7687,7 @@
     "viewBackgroundColor": "#1e1e1e",
     "zenModeEnabled": false,
     "zoom": {
-      "value": 0.507002
+      "value": 0.807002
     },
     "viewModeEnabled": false,
     "showHyperlinkPopup": false,
